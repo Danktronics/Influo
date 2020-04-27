@@ -1,0 +1,20 @@
+{
+    "update_interval": 30,
+    "projects": [
+        {
+            "url": "git url",
+            "procedures": {
+                "deploy_production": {
+                    "commands": [
+                        "start script"
+                    ],
+                    "environment": "production",
+                    "condition": "automatic",
+                    "branches": [
+                        "master"
+                    ]
+                }
+            }
+        }
+    ]
+}

@@ -1,5 +1,5 @@
 [package]
-name = "Influo"
+name = "influo"
 version = "0.1.0"
 authors = ["Sei4or <sei4or@gmail.com>", "sithsiri <sithpri@gmail.com>"]
 description = "CI / CD the right way"

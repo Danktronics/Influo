@@ -9,9 +9,8 @@ fn main() -> Result<(), Error> {
 
     // Load Configuration
     let config: Value = read_configuration()?;
-    println!("URL:\n{}", config["projects"]["url"]);
 
-    let update_interval: Value = config["update_interval"];
+    let update_interval: &Value = &config["update_interval"];
     if update_interval.is_null() || !update_interval.is_number() {
         setup_updater_thread(30);
     } else {
@@ -27,7 +26,8 @@ fn main() -> Result<(), Error> {
 
 /// Interval is in milliseconds
 fn setup_updater_thread(interval: u32) {
-    thread::spawn(|| {
+    println!("Spawning updater thread");
+    thread::spawn(move || {
         thread::sleep(Duration::from_millis(interval as u64));
         println!("Run here")
     });

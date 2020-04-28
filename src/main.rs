@@ -1,4 +1,6 @@
 use std::fs;
+use std::thread;
+use std::time::Duration;
 use failure::Error;
 use serde_json::Value;
 
@@ -14,10 +16,10 @@ fn main() -> Result<(), Error> {
         setup_updater_thread(30);
     } else {
         let interval: Option<u64> = update_interval.as_u64();
-        if interval.is_none() || interval > u32::MAX {
-            throw!("The integer provided exceeded the u32 max");
+        if interval.is_none() || interval.unwrap() > u32::MAX {
+            panic!("The integer provided exceeded the u32 max");
         }
-        setup_updater_thread(update_interval.unwrap());   
+        setup_updater_thread(interval.unwrap());   
     }
 
     Ok(())

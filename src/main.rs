@@ -1,6 +1,6 @@
 use std::fs;
 
-use serde_json::{Result, Value, Error};
+use serde_json::{Result, Value};
 
 fn main() -> Result<()> {
     println!("Influo is running!");
@@ -14,7 +14,8 @@ fn main() -> Result<()> {
 }
 
 fn read_configuration() -> Result<Value> {
-    let output: &str = &fs::read_to_string("./config.json")
+    let file_string = fs::read_to_string("./config.json")
         .expect("The config file was not found.");
+    let output: &str = &file_string;    // I think this is type conversion from the original String
     return serde_json::from_str(output);
 }

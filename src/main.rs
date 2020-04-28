@@ -16,10 +16,10 @@ fn main() -> Result<(), Error> {
         setup_updater_thread(30);
     } else {
         let interval: Option<u64> = update_interval.as_u64();
-        if interval.is_none() || interval.unwrap() > u32::MAX {
+        if interval.is_none() || interval.unwrap() > u32::MAX as u64 {
             panic!("The integer provided exceeded the u32 max");
         }
-        setup_updater_thread(interval.unwrap());   
+        setup_updater_thread(interval.unwrap() as u32);   
     }
 
     Ok(())
@@ -28,7 +28,7 @@ fn main() -> Result<(), Error> {
 /// Interval is in milliseconds
 fn setup_updater_thread(interval: u32) {
     thread::spawn(|| {
-        thread::sleep(Duration::from_millis(interval));
+        thread::sleep(Duration::from_millis(interval as u64));
         println!("Run here")
     });
 }

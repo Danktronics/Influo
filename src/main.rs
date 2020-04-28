@@ -11,6 +11,6 @@ fn main() -> Result<()> {
 }
 
 fn read_configuration() -> Result<Value> {
-    let raw_data: str = fs::read_to_string("config.json")?;
-    serde_json::from_str(raw_data)?
+    let raw_data: String = fs::read_to_string("config.json")?;
+    Ok(serde_json::from_str(raw_data)?)
 }

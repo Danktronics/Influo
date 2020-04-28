@@ -18,19 +18,20 @@ fn main() -> Result<(), Error> {
         if interval.is_none() || interval.unwrap() > u32::MAX as u64 {
             panic!("The integer provided exceeded the u32 max");
         }
-        setup_updater_thread(interval.unwrap() as u32);   
+        let join_handle: JoinHandle<T> = setup_updater_thread(interval.unwrap() as u32);
+        join_handle.join().unwrap();
     }
 
     Ok(())
 }
 
 /// Interval is in milliseconds
-fn setup_updater_thread(interval: u32) {
+fn setup_updater_thread(interval: u32) -> JoinHandle<T> {
     println!("Spawning updater thread");
     thread::spawn(move || {
         thread::sleep(Duration::from_millis(interval as u64));
         println!("Run here")
-    });
+    })
 }
 
 fn read_configuration() -> Result<Value, Error> {

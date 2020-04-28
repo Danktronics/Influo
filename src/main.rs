@@ -1,8 +1,8 @@
 use std::fs;
 use failure::Error;
-use serde_json::{Result, Value};
+use serde_json::Value;
 
-fn main() -> Result<()> {
+fn main() -> Result<(), Error> {
     println!("Influo is running!");
 
     let config: Value = read_configuration()?;

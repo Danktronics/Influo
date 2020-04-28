@@ -4,6 +4,8 @@ use std::time::Duration;
 use failure::Error;
 use serde_json::Value;
 
+mod project;
+
 fn main() -> Result<(), Error> {
     println!("Influo is running!");
 
@@ -20,6 +22,16 @@ fn main() -> Result<(), Error> {
         }
         let join_handle: thread::JoinHandle<()> = setup_updater_thread(interval.unwrap() as u32 * 1000);
         join_handle.join().unwrap();
+    }
+
+    let raw_projects: &Value = &config["projects"];
+    if !raw_projects.is_array() {
+        return err_msg("Projects is invalid");
+    }
+    let raw_projects_array: &Vec<Value> = raw_projects.as_array();
+    let projects: Vec<Project> = Vec::new();
+    for raw_project in raw_projects_array {
+        projects.push(Project::new(raw_project["url"], raw_project["procedures"]));
     }
 
     Ok(())

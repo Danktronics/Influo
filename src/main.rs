@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::ErrorKind;
+use failure::Error;
 use serde_json::{Result, Value};
 
 fn main() -> Result<()> {
@@ -10,7 +10,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn read_configuration() -> Result<Value> {
+fn read_configuration() -> Result<Value, Error> {
     let raw_data: String = fs::read_to_string("config.json")?;
-    Ok(serde_json::from_str(raw_data)?)
+    Ok(serde_json::from_str(&raw_data)?)
 }

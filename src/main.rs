@@ -18,7 +18,7 @@ fn main() -> Result<(), Error> {
         if interval.is_none() || interval.unwrap() > u32::MAX as u64 {
             panic!("The integer provided exceeded the u32 max");
         }
-        let join_handle: JoinHandle<T> = setup_updater_thread(interval.unwrap() as u32);
+        let join_handle: thread::JoinHandle<()> = setup_updater_thread(interval.unwrap() as u32);
         join_handle.join().unwrap();
     }
 
@@ -26,7 +26,7 @@ fn main() -> Result<(), Error> {
 }
 
 /// Interval is in milliseconds
-fn setup_updater_thread(interval: u32) -> JoinHandle<T> {
+fn setup_updater_thread(interval: u32) -> thread::JoinHandle<()> {
     println!("Spawning updater thread");
     thread::spawn(move || {
         thread::sleep(Duration::from_millis(interval as u64));

@@ -31,7 +31,7 @@ fn main() -> Result<(), Error> {
         return Err(err_msg("Projects is invalid"));
     }
     let raw_projects_array: &Vec<Value> = raw_projects.as_array().unwrap();
-    let projects: Vec<Project> = Vec::new();
+    let mut projects: Vec<Project> = Vec::new();
     for raw_project in raw_projects_array {
         projects.push(Project::new(&raw_project["url"], &raw_project["procedures"])?);
     }

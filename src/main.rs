@@ -1,12 +1,12 @@
 use std::fs;
 use std::thread;
 use std::time::Duration;
-use failure::Error;
+use failure::{Error, err_msg};
 use serde_json::Value;
 
 mod model;
 
-use model::Project;
+use model::project::Project;
 
 fn main() -> Result<(), Error> {
     println!("Influo is running!");
@@ -30,7 +30,7 @@ fn main() -> Result<(), Error> {
     if !raw_projects.is_array() {
         return Err(err_msg("Projects is invalid"));
     }
-    let raw_projects_array: &Vec<Value> = raw_projects.as_array();
+    let raw_projects_array: &Vec<Value> = raw_projects.as_array().unwrap();
     let projects: Vec<Project> = Vec::new();
     for raw_project in raw_projects_array {
         projects.push(Project::new(raw_project["url"], raw_project["procedures"]));

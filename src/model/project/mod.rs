@@ -3,7 +3,7 @@ use serde_json::Value;
 
 pub mod procedure;
 
-use self::Procedure;
+use self::procedure::Procedure;
 
 pub struct Project {
     pub url: String,
@@ -15,7 +15,7 @@ impl Project {
         if !raw_url.is_string() {
             return Err(err_msg("URL is invalid"));
         }
-        let url: &String = raw_url.as_str().unwrap();
+        let url: &str = raw_url.as_str().unwrap();
 
         if !raw_procedures.is_array() {
             return Err(err_msg("Procedures is not an array"));
@@ -23,7 +23,7 @@ impl Project {
         let raw_procedures_array: &Vec<Value> = raw_procedures.as_array().unwrap();
         let procedures: Vec<Procedure> = Vec::new();
         for raw_procedure in raw_procedures_array {
-            procedures.push(Procedure::new(raw_procedures_array));
+            procedures.push(Procedure::new(raw_procedure));
         }
 
         Ok(Project {

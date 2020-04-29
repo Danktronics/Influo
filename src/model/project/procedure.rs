@@ -10,7 +10,7 @@ pub struct Procedure {
 }
 
 impl Procedure {
-    pub fn new(data: Vec<Value>) -> Result<Procedure, Error> {
+    pub fn new(data: Value) -> Result<Procedure, Error> {
         let raw_name: Value = data["name"];
         if !raw_name.is_string() {
             return Err(err_msg("Name is invalid in procedure"));
@@ -50,7 +50,7 @@ impl Procedure {
         let branches: Vec<String> = Vec::new();
         for raw_branch in raw_branches_array {
             if !raw_branch.is_string() {
-                return err(err_msg("Procedure branch is invalid"));
+                return Err(err_msg("Procedure branch is invalid"));
             }
             branches.push(raw_branch.as_str().unwrap());
         }

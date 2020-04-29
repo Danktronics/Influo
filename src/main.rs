@@ -4,7 +4,9 @@ use std::time::Duration;
 use failure::Error;
 use serde_json::Value;
 
-mod project;
+mod model;
+
+use model::project;
 
 fn main() -> Result<(), Error> {
     println!("Influo is running!");

@@ -10,18 +10,18 @@ pub struct Procedure {
 }
 
 impl Procedure {
-    pub fn new(data: Value) -> Result<Procedure, Error> {
+    pub fn new(data: &Value) -> Result<Procedure, Error> {
         let raw_name: Value = data["name"];
         if !raw_name.is_string() {
             return Err(err_msg("Name is invalid in procedure"));
         }
-        let name: &String = raw_name.as_str().unwrap();
+        let name: &str = raw_name.as_str().unwrap();
 
         let raw_commands: Value = data["commands"];
         if !raw_commands.is_array() {
             return Err(err_msg("Commands is invalid in procedure"));
         }
-        let raw_commands_array: &Vec<String> = raw_commands.as_array().unwrap();
+        let raw_commands_array: &Vec<Value> = raw_commands.as_array().unwrap();
         let commands: Vec<String> = Vec::new();
         for raw_command in raw_commands_array {
             if !raw_command.is_string() {
@@ -46,7 +46,7 @@ impl Procedure {
         if !raw_branches.is_array() {
             return Err(err_msg("Branches is invalid in procedure"));
         }
-        let raw_branches_array: &Vec<String> = raw_branches.as_array().unwrap();
+        let raw_branches_array: &Vec<Value> = raw_branches.as_array().unwrap();
         let branches: Vec<String> = Vec::new();
         for raw_branch in raw_branches_array {
             if !raw_branch.is_string() {
@@ -56,7 +56,7 @@ impl Procedure {
         }
 
         Ok(Procedure {
-            name: name,
+            name: name.to_string(),
             commands: commands,
             environment: environment,
             condition: condition,

@@ -11,7 +11,7 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn new(raw_url: Value, raw_procedures: Value) -> Result<Project, Error> {
+    pub fn new(raw_url: &Value, raw_procedures: &Value) -> Result<Project, Error> {
         if !raw_url.is_string() {
             return Err(err_msg("URL is invalid"));
         }

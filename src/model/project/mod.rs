@@ -5,6 +5,7 @@ pub mod procedure;
 
 use self::procedure::Procedure;
 
+#[derive(Debug)]
 pub struct Project {
     pub url: String,
     pub procedures: Vec<Procedure>,

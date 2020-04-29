@@ -1,6 +1,7 @@
 use failure::{Error, err_msg};
 use serde_json::Value;
 
+#[derive(Debug)]
 pub struct Procedure {
     pub name: String,
     pub commands: Vec<String>,

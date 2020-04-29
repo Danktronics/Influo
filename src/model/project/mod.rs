@@ -23,7 +23,7 @@ impl Project {
         let raw_procedures_array: &Vec<Value> = raw_procedures.as_array().unwrap();
         let procedures: Vec<Procedure> = Vec::new();
         for raw_procedure in raw_procedures_array {
-            procedures.push(Procedure::new(raw_procedure));
+            procedures.push(Procedure::new(raw_procedure)?);
         }
 
         Ok(Project {

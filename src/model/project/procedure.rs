@@ -27,20 +27,20 @@ impl Procedure {
             if !raw_command.is_string() {
                 return Err(err_msg("Procedure command is invalid"));
             }
-            commands.push(raw_command.as_str().unwrap());
+            commands.push(raw_command.as_str().unwrap().to_string());
         }
 
         let raw_environment: Value = data["environment"];
         if !raw_environment.is_string() {
             return Err(err_msg("Environment is invalid in procedure"));
         }
-        let environment: &String = raw_environment.as_str().unwrap();
+        let environment: &str = raw_environment.as_str().unwrap();
 
         let raw_condition: Value = data["condition"];
         if !raw_condition.is_string() {
             return Err(err_msg("Condition is invalid in procedure"));
         }
-        let condition: &String = raw_condition.as_str().unwrap();
+        let condition: &str = raw_condition.as_str().unwrap();
 
         let raw_branches: Value = data["branches"];
         if !raw_branches.is_array() {
@@ -52,14 +52,14 @@ impl Procedure {
             if !raw_branch.is_string() {
                 return Err(err_msg("Procedure branch is invalid"));
             }
-            branches.push(raw_branch.as_str().unwrap());
+            branches.push(raw_branch.as_str().unwrap().to_string());
         }
 
         Ok(Procedure {
             name: name.to_string(),
             commands: commands,
-            environment: environment,
-            condition: condition,
+            environment: environment.to_string(),
+            condition: condition.to_string(),
             branches: branches,
         })
     }

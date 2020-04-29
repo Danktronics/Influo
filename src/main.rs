@@ -6,7 +6,7 @@ use serde_json::Value;
 
 mod model;
 
-use model::project;
+use model::Project;
 
 fn main() -> Result<(), Error> {
     println!("Influo is running!");
@@ -28,7 +28,7 @@ fn main() -> Result<(), Error> {
 
     let raw_projects: &Value = &config["projects"];
     if !raw_projects.is_array() {
-        return err_msg("Projects is invalid");
+        return Err(err_msg("Projects is invalid"));
     }
     let raw_projects_array: &Vec<Value> = raw_projects.as_array();
     let projects: Vec<Project> = Vec::new();

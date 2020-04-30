@@ -2,9 +2,9 @@ use std::process::Command;
 use failure::{Error, err_msg};
 use regex::Regex;
 
-use model::project::branch::Branch;
+use crate::model::project::branch::Branch;
 
-fn run_system_command(command: &Vec<str>, path: &str) -> Result<String, Error> {
+fn run_system_command(command: &Vec<&str>, path: &str) -> Result<String, Error> {
     let raw_output = if cfg!(target_os = "windows") {
         Command::new("cmd")
                 .current_dir(path)
@@ -25,7 +25,7 @@ fn run_system_command(command: &Vec<str>, path: &str) -> Result<String, Error> {
     Ok(String::from_utf8(raw_output.unwrap().stdout)?)
 }
 
-fn get_remote_git_repository_commits(remote_url: &str) -> Result<Vec<Branch>, Error> {
+pub fn get_remote_git_repository_commits(remote_url: &str) -> Result<Vec<Branch>, Error> {
     let result = run_system_command(&["git", "ls-remote", "--heads", remote_url], "./")?;
     let regex_pattern = Regex::new(r"([0-9a-fA-F]+)\s+refs\/heads\/(\S+)").unwrap(); // Overkill, might change later
     let branches: Vec<Branch> = Vec::new();

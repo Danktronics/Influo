@@ -28,13 +28,13 @@ fn main() -> Result<(), Error> {
 
     let update_interval: &Value = &config["update_interval"];
     if update_interval.is_null() || !update_interval.is_number() {
-        setup_updater_thread(30, projects);
+        setup_updater_thread(30, &projects);
     } else {
         let interval: Option<u64> = update_interval.as_u64();
         if interval.is_none() || interval.unwrap() > u32::MAX as u64 {
             panic!("The integer provided exceeded the u32 max");
         }
-        let join_handle: thread::JoinHandle<()> = setup_updater_thread(interval.unwrap() as u32 * 1000, projects);
+        let join_handle: thread::JoinHandle<()> = setup_updater_thread(interval.unwrap() as u32 * 1000, &projects);
         join_handle.join().unwrap();
     }
 

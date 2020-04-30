@@ -1,5 +1,5 @@
 #[derive(Debug)]
 pub struct Branch {
-    name: String,
-    latest_commit_hash: String,
+    pub name: String,
+    pub latest_commit_hash: String,
 }

@@ -11,3 +11,4 @@ Cargo.lock
 
 # Repo specific
 /src/config.json
+src/config.json

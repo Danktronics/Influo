@@ -33,6 +33,7 @@ impl Project {
         Ok(Project {
             url: url.to_string(),
             procedures: procedures,
+            Vec::new(),
         })
     }
 

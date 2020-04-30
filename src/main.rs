@@ -7,6 +7,7 @@ use serde_json::Value;
 mod model;
 
 use model::project::Project;
+use system_cmd::get_remote_git_repository_commits;
 
 fn main() -> Result<(), Error> {
     println!("Influo is running!");
@@ -40,11 +41,30 @@ fn main() -> Result<(), Error> {
 }
 
 /// Interval should be in milliseconds
-fn setup_updater_thread(interval: u32) -> thread::JoinHandle<()> {
+fn setup_updater_thread(interval: u32, projects: &Vec<Project>) -> thread::JoinHandle<()> {
     println!("Spawning updater thread");
     thread::spawn(move || loop {
         thread::sleep(Duration::from_millis(interval as u64));
-        println!("Run here")
+        println!("Checking project repositories for updates");
+        for project in projects {
+            let query_result = get_remote_git_repository_commits(&project.url);
+            if query_result.is_err() {
+                println!(format!("Failed to query commits for project with url {}", project.url));
+                continue;
+            }
+
+            let branches = query_result.unwrap();
+            for branch in branches {
+                let cached_branch = project.branches.find(|&&b| b.name == branch.name);
+                if cached_branch.is_some() && cached_branch.unwrap().latest_commit_hash == branch.latest_commit_hash {
+                    continue;
+                }
+
+                println!("Branch change detected (new commit or new branch)");
+            }
+
+            project.update_branches(branches);
+        }
     })
 }
 

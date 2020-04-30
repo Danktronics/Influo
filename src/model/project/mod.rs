@@ -2,13 +2,16 @@ use failure::{Error, err_msg};
 use serde_json::Value;
 
 pub mod procedure;
+pub mod branch;
 
 use self::procedure::Procedure;
+use self::branch::Branch;
 
 #[derive(Debug)]
 pub struct Project {
     pub url: String,
     pub procedures: Vec<Procedure>,
+    pub branches: Vec<Branch>,
 }
 
 impl Project {
@@ -31,5 +34,9 @@ impl Project {
             url: url.to_string(),
             procedures: procedures,
         })
+    }
+
+    pub fn update_branches(&self, branches: Vec<Branch>) {
+        self.branches = branches;
     }
 }

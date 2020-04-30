@@ -42,7 +42,7 @@ fn main() -> Result<(), Error> {
 }
 
 /// Interval should be in milliseconds
-fn setup_updater_thread(interval: u32, projects: &Vec<Project>) -> thread::JoinHandle<()> {
+fn setup_updater_thread(interval: u32, projects: &'static Vec<Project>) -> thread::JoinHandle<()> {
     println!("Spawning updater thread");
     thread::spawn(move || loop {
         thread::sleep(Duration::from_millis(interval as u64));

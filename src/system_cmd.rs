@@ -26,7 +26,7 @@ fn run_system_command(command: &Vec<&str>, path: &str) -> Result<String, Error> 
 }
 
 pub fn get_remote_git_repository_commits(remote_url: &str) -> Result<Vec<Branch>, Error> {
-    let result = run_system_command(vec!["git", "ls-remote", "--heads", remote_url], "./")?;
+    let result = run_system_command(&vec!["git", "ls-remote", "--heads", remote_url], "./")?;
     let regex_pattern = Regex::new(r"([0-9a-fA-F]+)\s+refs\/heads\/(\S+)").unwrap(); // Overkill, might change later
     let branches: Vec<Branch> = Vec::new();
     for capture in regex_pattern.captures_iter(&result) {

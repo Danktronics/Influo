@@ -10,4 +10,4 @@ Cargo.lock
 **/*.rs.bk
 
 # Repo specific
-src/config.json
+config.json

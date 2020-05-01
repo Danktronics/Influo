@@ -70,7 +70,10 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                     }
 
                     println!("Branch change detected (new commit or new branch)");
-                    run_project_procedures(&project, &branch);
+                    let procedure_immediate_result = run_project_procedures(&project, &branch);
+                    if procedure_immediate_result.is_err() {
+                        println!("Error occurred while running procedure: {:?}", procedure_immediate_result);
+                    }
                 }
 
                 project.update_branches(branches);
@@ -80,17 +83,24 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
 }
 
 fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Error> {
-    for procedure in project.procedures {
-        let branch_in_procedure = procedure.branches.iter().find(|&b| b == branch.name);
+    for procedure in &project.procedures {
+        let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
         if branch_in_procedure.is_none() {
             continue;
         }
 
         let repository_name: String = setup_git_repository(&project.url, &procedure.deploy_path)?;
+        let path = format!("{}/{}", procedure.deploy_path, repository_name);
+        let commands: Vec<String> = procedure.commands.clone();
 
         thread::spawn(move || {
-            for &command in procedure.commands {
-                let child_process: Child = run_procedure_command(command, &format!("{}/{}", procedure.deploy_path, repository_name))?;
+            for command in &commands {
+                println!("[{}] Running command: {}", path, command);
+                let result_child_process = run_procedure_command(command, &path);
+                if result_child_process.is_err() {
+                    break;
+                }
+                let child_process = result_child_process.unwrap();
             }
         });
     }

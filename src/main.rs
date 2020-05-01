@@ -10,6 +10,8 @@ mod model;
 mod system_cmd;
 
 use model::project::Project;
+use crate::model::project::branch::Branch; //this is a temp fix
+
 use system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
 
 fn main() -> Result<(), Error> {
@@ -88,10 +90,10 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
         let repository_name: String = setup_git_repository(&project.url, &procedure.deploy_path)?;
 
         thread::spawn(move || {
-            for command in procedure.commmands {
-                let child_process: Child = run_procedure_command(&command, format!("{}/{}", procedure.deploy_path, repository_name));
+            for command in procedure.commands {
+                let child_process: Child = run_procedure_command(&command, &format!("{}/{}", procedure.deploy_path, repository_name));
             }
-        })
+        };)
     }
 
     Ok(())

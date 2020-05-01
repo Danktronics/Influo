@@ -15,7 +15,7 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn new(raw_url: &Value, raw_procedures: &Value) -> Result<Project, Error> {
+    pub fn new(raw_url: &Value, raw_procedures: &Value, raw_default_deploy_path: &Value) -> Result<Project, Error> {
         if !raw_url.is_string() {
             return Err(err_msg("URL is invalid"));
         }
@@ -27,7 +27,7 @@ impl Project {
         let raw_procedures_array: &Vec<Value> = raw_procedures.as_array().unwrap();
         let mut procedures: Vec<Procedure> = Vec::new();
         for raw_procedure in raw_procedures_array {
-            procedures.push(Procedure::new(raw_procedure)?);
+            procedures.push(Procedure::new(raw_procedure, raw_default_deploy_path)?);
         }
 
         Ok(Project {
@@ -37,7 +37,7 @@ impl Project {
         })
     }
 
-    pub fn update_branches(&self, branches: Vec<Branch>) {
+    pub fn update_branches(&mut self, branches: Vec<Branch>) {
         self.branches = branches;
     }
 }

@@ -1,5 +1,6 @@
 {
     "update_interval": 30,
+    "default_deploy_path": "./projects",
     "projects": [
         {
             "url": "git url",
@@ -11,6 +12,7 @@
                     ],
                     "environment": "production",
                     "condition": "automatic",
+                    "deploy_path": "./projects",
                     "branches": [
                         "master"
                     ]

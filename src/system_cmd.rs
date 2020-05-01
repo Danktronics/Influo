@@ -1,6 +1,5 @@
 use std::process::Command;
 use std::fs;
-use std::path::Path;
 use std::process::{Child, Stdio};
 use failure::{Error, err_msg};
 use regex::Regex;
@@ -52,38 +51,38 @@ pub fn setup_git_repository(remote_url: &str, deploy_path: &str) -> Result<Strin
     fs::create_dir_all(deploy_path)?;
 
     // Download or update repository
-    let clone_attempt = run_system_command(&vec!(&format!("git clone {}", remote_url)));
+    let regex_pattern = Regex::new(r"^(https|git)(:\/\/|@)([^\/:]+)[\/:]([^\/:]+)\/([^.]*)[.git]*?$").unwrap();
+    let captures = regex_pattern.captures(remote_url)?;
+    let repository_name = captures.get(captures.len());
+
+    let clone_attempt = run_system_command(&vec!(&format!("git clone {}", remote_url)), deploy_path);
     if clone_attempt.is_err() {
-        let pull_attempt = run_system_command(&vec!(&"git pull"));
+        let pull_attempt = run_system_command(&vec!(&"git pull"), format!("{}/{}", deploy_path, repository_name));
         if pull_attempt.is_err() {
             return Err(err_msg("Failed to update repository (clone and pull failed)"));
         }
     }
 
-    let regex_pattern = Regex::new(r"^(https|git)(:\/\/|@)([^\/:]+)[\/:]([^\/:]+)\/([^.]*)[.git]*?$").unwrap();
-    let captures = regex_pattern.captures(remote_url).unwrap()?;
-    Ok(captures.get(captures.len()));
+    Ok(repository_name)
 }
 
 // Procedure commands are not guaranteed to end
 pub fn run_procedure_command(command: &str, repository_path: &str) -> Result<Child, Error> {
     if cfg!(target_os = "windows") {
         Command::new("cmd")
-                .current_dir(path)
+                .current_dir(repository_path)
                 .arg("/C")
-                .args(command)
+                .args(&vec!(command))
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
-                .expect("Failed to run command")
     } else { // Assume Linux, BSD, and OSX
         Command::new("sh")
-                .current_dir(path)
+                .current_dir(repository_path)
                 .arg("-c") // Non-login and non-interactive
-                .args(command)
+                .args(&vec!(command))
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
-                .expect("Failed to run command")
     }
 }

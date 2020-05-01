@@ -10,6 +10,7 @@ mod model;
 mod system_cmd;
 
 use model::project::Project;
+use model::project::branch::Branch;
 use system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
 
 fn main() -> Result<(), Error> {
@@ -80,7 +81,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
 
 fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Error> {
     for procedure in project.procedures {
-        let branch_in_procedure = procedure.branches.iter().find(|&b| b.name == branch.name);
+        let branch_in_procedure = procedure.branches.iter().find(|&b| b == branch.name);
         if branch_in_procedure.is_none() {
             continue;
         }
@@ -88,10 +89,10 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
         let repository_name: String = setup_git_repository(&project.url, &procedure.deploy_path)?;
 
         thread::spawn(move || {
-            for command in procedure.commmands {
-                let child_process: Child = run_procedure_command(&command, format!("{}/{}", procedure.deploy_path, repository_name));
+            for &command in procedure.commands {
+                let child_process: Child = run_procedure_command(command, &format!("{}/{}", procedure.deploy_path, repository_name))?;
             }
-        })
+        });
     }
 
     Ok(())

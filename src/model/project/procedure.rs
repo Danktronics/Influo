@@ -52,7 +52,7 @@ impl Procedure {
             raw_default_deploy_path.as_str().unwrap()
         } else {
             raw_deploy_path.as_str().unwrap()
-        }
+        };
 
         let raw_branches: &Value = &data["branches"];
         if !raw_branches.is_array() {

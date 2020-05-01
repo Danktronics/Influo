@@ -7,11 +7,12 @@ pub struct Procedure {
     pub commands: Vec<String>,
     pub environment: String,
     pub condition: String,
+    pub deploy_path: String,
     pub branches: Vec<String>,
 }
 
 impl Procedure {
-    pub fn new(data: &Value) -> Result<Procedure, Error> {
+    pub fn new(data: &Value, raw_default_deploy_path: &Value) -> Result<Procedure, Error> {
         let raw_name: &Value = &data["name"];
         if !raw_name.is_string() {
             return Err(err_msg("Name is invalid in procedure"));
@@ -43,6 +44,16 @@ impl Procedure {
         }
         let condition: &str = raw_condition.as_str().unwrap();
 
+        let raw_deploy_path: &Value = &data["deploy_path"];
+        let deploy_path: &str = if !raw_deploy_path.is_string() {
+            if !raw_default_deploy_path.is_string() {
+                return Err(err_msg("Procedure deploy path was not set and default is invalid"));
+            }
+            raw_default_deploy_path.as_str().unwrap()
+        } else {
+            raw_deploy_path.as_str().unwrap()
+        };
+
         let raw_branches: &Value = &data["branches"];
         if !raw_branches.is_array() {
             return Err(err_msg("Branches is invalid in procedure"));
@@ -61,6 +72,7 @@ impl Procedure {
             commands: commands,
             environment: environment.to_string(),
             condition: condition.to_string(),
+            deploy_path: deploy_path.to_string(),
             branches: branches,
         })
     }

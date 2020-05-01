@@ -7,16 +7,16 @@ use regex::Regex;
 
 use crate::model::project::branch::Branch;
 
-fn run_system_command(command: &Vec<&String>, path: &str) -> Result<String, Error> {
+fn run_system_command(command: &Vec<&String>, command_path: &str) -> Result<String, Error> {
     let raw_output = if cfg!(target_os = "windows") {
         Command::new("cmd")
-                .current_dir(path)
+                .current_dir(command_path)
                 .arg("/C")
                 .args(command)
                 .output()
     } else { // Assume Linux, BSD, and OSX
         Command::new("sh")
-                .current_dir(path)
+                .current_dir(command_path)
                 .arg("-c") // Non-login and non-interactive
                 .args(command)
                 .output()
@@ -26,7 +26,7 @@ fn run_system_command(command: &Vec<&String>, path: &str) -> Result<String, Erro
         println!("{:?}", output);
         return Err(err_msg(format!("Command failed ({:?})", command)));
     }
-    
+
     Ok(String::from_utf8(output.stdout)?)
 }
 
@@ -69,7 +69,7 @@ pub fn setup_git_repository(remote_url: &str, deploy_path: &str) -> Result<Strin
 pub fn run_procedure_command(command: &str, repository_path: &str) -> Result<Child, Error> {
     if cfg!(target_os = "windows") {
         Command::new("cmd")
-                .current_dir(path)
+                .current_dir(repository_path)
                 .arg("/C")
                 .args(command)
                 .stdout(Stdio::piped())
@@ -78,7 +78,7 @@ pub fn run_procedure_command(command: &str, repository_path: &str) -> Result<Chi
                 .expect("Failed to run command")
     } else { // Assume Linux, BSD, and OSX
         Command::new("sh")
-                .current_dir(path)
+                .current_dir(repository_path)
                 .arg("-c") // Non-login and non-interactive
                 .args(command)
                 .stdout(Stdio::piped())

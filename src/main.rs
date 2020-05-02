@@ -2,7 +2,7 @@ use std::fs;
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
-use std::process::Child;
+// use std::process::Child; // unused
 use failure::{Error, err_msg};
 use serde_json::Value;
 
@@ -100,7 +100,7 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
                 if result_child_process.is_err() {
                     break;
                 }
-                let child_process = result_child_process.unwrap();
+                // let child_process = result_child_process.unwrap(); // unused
             }
         });
     }

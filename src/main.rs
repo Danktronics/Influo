@@ -64,7 +64,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
             for project in &mut *temp_projects { // Uhhh
                 let query_result = get_remote_git_repository_commits(&project.url);
                 if query_result.is_err() {
-                    info!(format!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap()));
+                    error!(format!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap()));
                     continue;
                 }
 
@@ -72,18 +72,18 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                 for branch in &branches {
                     let mut short_hash = branch.latest_commit_hash.clone();
                     short_hash.truncate(7);
-                    // println!("Current branch is {}. Current short commit hash is {hash}.", branch.name, hash = short_hash); // debug
+                    info!(format!("Current branch is {}. Current short commit hash is {hash}.", branch.name, hash = short_hash));
                     let cached_branch = project.branches.iter().find(|&b| b.name == branch.name);
                     if cached_branch.is_some() && cached_branch.unwrap().latest_commit_hash == branch.latest_commit_hash {
                         continue;
                     }
                     // else
-                    println!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name);
+                    info!(format!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name));
                     let procedure_immediate_result = run_project_procedures(&project, &branch);
                     if procedure_immediate_result.is_err() {
-                        println!("Error occurred while running procedure: {:?}", procedure_immediate_result);
+                        error!(format!("Error occurred while running procedure: {:?}", procedure_immediate_result));
                     } else {
-                        println!("Update succeeded.")
+                        info!("Update succeeded.")
                     }
                 }
 

@@ -66,7 +66,7 @@ impl Logger {
 macro_rules! error {
     ($msg:expr) => {{
         use $crate::logger::{LOGGER, LogLevel};
-        LOGGER.lock().unwrap().log($msg, LogLevel::Error);
+        LOGGER.lock().unwrap().log(&$msg, LogLevel::Error);
     }}
 }
 
@@ -74,7 +74,7 @@ macro_rules! error {
 macro_rules! warn {
     ($msg:expr) => {{
         use $crate::logger::{LOGGER, LogLevel};
-        LOGGER.lock().unwrap().log($msg, LogLevel::Warn);
+        LOGGER.lock().unwrap().log(&$msg, LogLevel::Warn);
     }}
 }
 
@@ -82,6 +82,6 @@ macro_rules! warn {
 macro_rules! info {
     ($msg:expr) => {{
         use $crate::logger::{LOGGER, LogLevel};
-        LOGGER.lock().unwrap().log($msg, LogLevel::Info);
+        LOGGER.lock().unwrap().log(&$msg, LogLevel::Info);
     }}
 }

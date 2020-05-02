@@ -119,10 +119,14 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
 fn log_child_output(child_process: &mut Child, path: &str, command: &str) {
     let stdout = child_process.stdout.as_mut().unwrap();
     let stdout_reader = BufReader::new(stdout);
-    let stdout_lines = stdout_reader.lines();
+    let mut stdout_lines = stdout_reader.lines();
 
-    for line in stdout_lines {
-        println!("[{}] Command ({}): {}", path, command, line.unwrap());
+    loop {
+        let mut i = stdout_lines.next();
+        while i.is_none() {             // blocking until new line is available
+            i = stdout_lines.next();
+        }
+        println!("[{}] Command ({}): {}", path, command, i.unwrap().unwrap());
     }
 }
 

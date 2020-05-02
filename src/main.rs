@@ -134,43 +134,15 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
 fn log_child_output(child_process: &mut Child, path: &str, command: &str) {
     let stdout = child_process.stdout.as_mut().unwrap();
     let stdout_reader = BufReader::new(stdout);
-    let stdout_lines = stdout_reader.lines();
-
-    for line in stdout_lines {
-        println!("[{}] Command ({}): {}", path, command, line.unwrap());
-    }
-
-    /*println!("{:?}", child_process.stdout);
-    match child_process.stdout {
-        Some(ref mut out) => {
-            let mut output_string = String::new();
-            match out.read_to_string(&mut output_string) {
-                Ok(_) => {
-                    println!("{}", output_string);
-                    match child_process.try_wait() {
-                        Ok(Some(status)) => println!("[{}] Command ({}) exited with {}", path, command, status),
-                        Ok(None) => log_child_output(child_process, path, command),
-                        Err(e) => {
-                            println!("Child wait error (very bad) error: {}", e);
-                            return;
-                        },
-                    }
-                },
-                Err(_) => return,
-            };
+    let mut stdout_lines = stdout_reader.lines();
+    
+    loop {
+        let mut i = stdout_lines.next();
+        while i.is_none() {             // blocking until new line is available
+            i = stdout_lines.next();
         }
-        None => {
-            println!("{:?}", child_process.try_wait());
-            match child_process.try_wait() {
-                Ok(Some(status)) => println!("[{}] Command ({}) exited with {}", path, command, status),
-                Ok(None) => log_child_output(child_process, path, command),
-                Err(e) => {
-                    println!("Child wait error (very bad) error: {}", e);
-                    return;
-                },
-            }
-        },
-    }*/
+        println!("[{}] Command ({}): {}", path, command, i.unwrap().unwrap());
+    }
 }
 
 fn read_configuration() -> Result<Value, Error> {

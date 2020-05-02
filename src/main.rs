@@ -9,7 +9,8 @@ use serde_json::Value;
 
 mod model;
 mod system_cmd;
-use logger;
+#[macro_use]
+mod logger;
 
 use model::project::Project;
 use model::project::branch::Branch;

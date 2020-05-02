@@ -2,7 +2,7 @@ use std::fs;
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
-use std::process::Child;
+// use std::process::Child; // unused
 use failure::{Error, err_msg};
 use serde_json::Value;
 

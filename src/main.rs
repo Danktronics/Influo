@@ -94,7 +94,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
     })
 }
 
-fn run_project_procedures(project: &Project, branch: &Branch) -> Result<Child, Error> {
+fn run_project_procedures(project: &Project, branch: &Branch, s: Sender, r: Receiver) -> Result<(), Error> {
     for procedure in &project.procedures {
         let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
         if branch_in_procedure.is_none() {

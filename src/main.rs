@@ -4,7 +4,7 @@ use std::io::{BufReader, BufRead};
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
-use std::process::Child;
+use std::process::{Child, ChildStdout};
 use failure::{Error, err_msg};
 use serde_json::Value;
 use crossbeam_channel::{unbounded, Receiver};
@@ -77,6 +77,9 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
 
                 let branches = query_result.unwrap();
                 for branch in &branches {
+                    if branch.name != "master" {
+                        continue;
+                    }
                     let mut short_hash = branch.latest_commit_hash.clone();
                     short_hash.truncate(7);
                     info!(format!("Current branch is {}. Current short commit hash is {hash}.", branch.name, hash = short_hash));
@@ -102,6 +105,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                 }
 
                 project.update_branches(branches);
+                break;
             }
             thread::sleep(Duration::from_millis(interval as u64));
         }
@@ -128,10 +132,12 @@ fn run_project_procedures(project: &Project, branch: &Branch, r1: Receiver<Messa
                     break;
                 }
                 let mut child_process: Child = result_child_process.unwrap();
+                let child_stdout = child_process.stdout.take().unwrap();
+                let log_format = format!("[{}] Command ({})", path, command);
 
                 // Print std from child process
-                thread::spawn(|| {
-                    log_child_output(&mut child_process, &path, &command);
+                thread::spawn(move || {
+                    log_child_output(child_stdout, &log_format);
                 });
 
                 // kill child on signal
@@ -143,6 +149,7 @@ fn run_project_procedures(project: &Project, branch: &Branch, r1: Receiver<Messa
             }
             if success {println!("Work completed successfully!");}
         });
+        break;
     }
 
     Ok(())
@@ -171,19 +178,18 @@ fn child_killer(child: &mut Child, r: &Receiver<Messages>) -> bool {
     }
 }
 
-fn log_child_output(child_process: &mut Child, path: &str, command: &str) {
-    let stdout = child_process.stdout.take().unwrap();
+fn log_child_output(stdout: ChildStdout, log_format: &str) {
     let stdout_reader = BufReader::new(stdout);
     let mut stdout_lines = stdout_reader.lines();
 
     loop {
         let i = stdout_lines.next();                        // blocking
         if !i.is_none() {
-            info!(format!("[{}] Command ({}): {}", path, command, i.unwrap().unwrap()));
+            info!(format!("{}: {}", log_format, i.unwrap().unwrap()));
         }
-        if !child_process.try_wait().unwrap().is_none() {   // commit suicide if child dies
+        /*if !child_process.try_wait().unwrap().is_none() {   // commit suicide if child dies
             return;
-        }
+        }*/
     }
 }
 

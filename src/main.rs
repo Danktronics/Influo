@@ -139,14 +139,18 @@ fn run_project_procedures(project: &Project, branch: &Branch, r1: Receiver<Messa
 }
 
 fn log_child_output(child_process: &mut Child, path: &str, command: &str, r: &Receiver<Messages>) -> bool {
-    let stdout = child_process.stdout.as_mut().unwrap();
+    let stdout = child_process.stdout.take().unwrap();
     let stdout_reader = BufReader::new(stdout);
     let mut stdout_lines = stdout_reader.lines();
 
     loop {
         let mut i = stdout_lines.next();
         while i.is_none() {                                     // blocking until new line is available=
-            let status = child_process.try_wait().unwrap().unwrap();
+            let possible_status = child_process.try_wait().unwrap();
+            if possible_status.is_none() {
+                continue;
+            }
+            let status = possible_status.unwrap();
             if status.success() {
                 return true;
             }

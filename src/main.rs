@@ -84,13 +84,13 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                         continue;
                     }
                     // else
-                    
+
                     info!(format!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name));
-                    
+
                     s.send(Messages::Terminate);
-                    
+
                     let procedure_immediate_result = run_project_procedures(&project, &branch, r.clone());
-                    
+
                     if procedure_immediate_result.is_err() {
                         error!(format!("Error occurred while running procedure: {:?}", procedure_immediate_result));
                     } else {
@@ -145,7 +145,7 @@ fn log_child_output(child_process: &mut Child, path: &str, command: &str, r: &Re
 
     loop {
         let mut i = stdout_lines.next();
-        while i.is_none() {                                     // blocking until new line is available
+        while i.is_none() {                                     // blocking until new line is available=
             let status = child_process.try_wait().unwrap().unwrap();
             if status.success() {
                 return true;
@@ -162,7 +162,7 @@ fn log_child_output(child_process: &mut Child, path: &str, command: &str, r: &Re
             }
             i = stdout_lines.next();
         }
-        info!(format!("[{}] Command ({}): {}", path, command, line.unwrap()));
+        info!(format!("[{}] Command ({}): {}", path, command, i.unwrap().unwrap()));
     }
 }
 

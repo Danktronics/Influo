@@ -106,10 +106,12 @@ fn run_project_procedures(project: &Project, branch: &Branch, s1: &Sender<Messag
         let path = format!("{}/{}", procedure.deploy_path, repository_name);
         let commands: Vec<String> = procedure.commands.clone();
 
-        if r1.recv()? == Messages::Test {
+        // if r1.recv()? == Messages::Test {
             // child_process.kill().except("Command was not running.");
-            println!("Received test message")
-        }
+            // println!("Received test message")
+        // }
+
+        let r = Arc::new(&r1);
 
         thread::spawn(move || {
             for command in &commands {
@@ -117,6 +119,12 @@ fn run_project_procedures(project: &Project, branch: &Branch, s1: &Sender<Messag
                 let result_child_process = run_procedure_command(command, &path);
                 if result_child_process.is_err() {
                     break;
+                }
+
+                let r = Arc::clone(&r);
+                if r.recv() == Messages::Test {
+                    // child_process.kill().except("Command was not running.");
+                    println!("Received test message")
                 }
 
                 // Print std from child process

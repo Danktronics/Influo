@@ -1,3 +1,4 @@
+// external+builtin dependencies
 use std::fs;
 use std::io::Read;
 use std::thread;
@@ -6,11 +7,14 @@ use std::sync::{Arc, Mutex};
 use std::process::Child;
 use failure::{Error, err_msg};
 use serde_json::Value;
+use crossbeam_channel::unbounded;
 
+// project dependencies
 mod model;
 mod system_cmd;
 
 use model::project::Project;
+use model::project::messages::Messages;
 use model::project::branch::Branch;
 use system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
 
@@ -52,6 +56,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
     let updater_projects_ref = Arc::clone(&projects);
     thread::spawn(move || {
         let mut temp_projects = updater_projects_ref.lock().unwrap();
+        let (s, r) = unbounded();
         loop {
             // println!("Checking project repositories for updates"); // debug
             for project in &mut *temp_projects { // Uhhh
@@ -72,7 +77,9 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                     }
                     // else
                     println!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name);
-                    let procedure_immediate_result = run_project_procedures(&project, &branch);
+                    s.send(Messages::Terminate);
+                    assert_eq!(r.recv(), Messages::Terminated);
+                    let procedure_immediate_result = run_project_procedures(&project, &branch, s, r);
                     if procedure_immediate_result.is_err() {
                         println!("Error occurred while running procedure: {:?}", procedure_immediate_result);
                     } else {
@@ -87,7 +94,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
     })
 }
 
-fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Error> {
+fn run_project_procedures(project: &Project, branch: &Branch) -> Result<Child, Error> {
     for procedure in &project.procedures {
         let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
         if branch_in_procedure.is_none() {

@@ -61,6 +61,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
     info!("Spawning updater thread");
     let updater_projects_ref = Arc::clone(&projects);
     let (s, r) = unbounded();
+    let mut send_term: bool = false;
     thread::spawn(move || {
         let mut temp_projects = updater_projects_ref.lock().unwrap();
         loop {
@@ -86,9 +87,11 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                     // else
 
                     info!(format!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name));
-
-                    s.send(Messages::Terminate).expect("Unable to send terminate signal!");
-
+                    if send_term {
+                        s.send(Messages::Terminate).expect("Unable to send terminate signal!");
+                    } else {
+                        send_term = true;
+                    }
                     let procedure_immediate_result = run_project_procedures(&project, &branch, r.clone());
 
                     if procedure_immediate_result.is_err() {

@@ -1,0 +1,14 @@
+[package]
+name = "influo"
+version = "0.1.0"
+authors = ["Sei4or <sei4or@gmail.com>", "sithsiri <sithpri@gmail.com>"]
+description = "CI / CD the right way"
+license = "MIT"
+edition = "2018"
+
+[dependencies]
+serde_json = "1.0"
+failure = "0.1.7"
+regex = "1"
+lazy_static = "1.4.0"
+crossbeam-channel = "0.4"

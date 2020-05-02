@@ -1,0 +1,24 @@
+{
+    "update_interval": 30,
+    "log_level": "info",
+    "default_deploy_path": "./projects",
+    "projects": [
+        {
+            "url": "git url",
+            "procedures": [
+                {
+                    "name": "deploy_production",
+                    "commands": [
+                        "start script"
+                    ],
+                    "environment": "production",
+                    "condition": "automatic",
+                    "deploy_path": "./projects",
+                    "branches": [
+                        "master"
+                    ]
+                }
+            ]
+        }
+    ]
+}

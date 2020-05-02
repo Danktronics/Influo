@@ -2,7 +2,7 @@ use std::fs;
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
-// use std::process::Child; // unused
+use std::process::Child;
 use failure::{Error, err_msg};
 use serde_json::Value;
 
@@ -102,7 +102,21 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
                 if result_child_process.is_err() {
                     break;
                 }
-                // let child_process = result_child_process.unwrap(); // unused
+
+                // Print std from child process
+                let child_process: Child = result_child_process.unwrap();
+                loop {
+                    match child_process.stdout {
+                        Some(out) {
+                            let mut output_string = String::new();
+                            out.read_to_string(&mut output_string) {
+                                Ok(_) => println!(output_string),
+                                Err(_) => break,
+                            };
+                        }
+                        None => break,
+                    }
+                }
             }
         });
     }

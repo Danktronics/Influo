@@ -1,4 +1,4 @@
-static logger_instance: Logger = Logger::new(LogLevel::Warn);
+pub static logger_instance: Logger = Logger::new(LogLevel::Warn);
 
 pub enum LogLevel {
     Error = 0,

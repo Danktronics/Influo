@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::process::Child;
 use failure::{Error, err_msg};
 use serde_json::Value;
-use crossbeam-channel::unbounded;
+use crossbeam_channel::{unbounded, Sender, Receiver};
 
 // project dependencies
 mod model;

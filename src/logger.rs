@@ -41,7 +41,7 @@ impl Logger {
         } else if log_level_num == 2 {
             "WARN"
         } else if log_level_num == 3 {
-            "ERROR"
+            "INFO"
         } else {
             "OTHER"
         };

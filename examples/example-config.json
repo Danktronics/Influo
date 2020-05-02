@@ -1,5 +1,6 @@
 {
     "update_interval": 30,
+    "log_level": "info",
     "default_deploy_path": "./projects",
     "projects": [
         {

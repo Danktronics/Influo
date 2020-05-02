@@ -12,17 +12,23 @@ use crossbeam_channel::{unbounded, Sender, Receiver};
 // project dependencies
 mod model;
 mod system_cmd;
+#[macro_use]
+mod logger;
 
 use model::project::Project;
 // use model::project::messages::Messages; // maybe future
 use model::project::branch::Branch;
 use system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
+use logger::{LOGGER, Logger};
 
 fn main() -> Result<(), Error> {
     println!("Influo is running!");
 
     // Load Configuration
     let config: Value = read_configuration()?;
+    if config["log_level"].is_string() {
+        LOGGER.lock().unwrap().set_log_level(Logger::string_to_log_level(&config["log_level"].as_str().unwrap()));
+    }
 
     let raw_projects: &Value = &config["projects"];
     if !raw_projects.is_array() {
@@ -52,18 +58,19 @@ fn main() -> Result<(), Error> {
 
 /// Interval should be in milliseconds
 fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> thread::JoinHandle<()> {
-    println!("Spawning updater thread");
+    info!("Spawning updater thread");
     let updater_projects_ref = Arc::clone(&projects);
     let (s, r) = unbounded();
     thread::spawn(move || {
         let mut temp_projects = updater_projects_ref.lock().unwrap();
         loop {
+            thread::sleep(Duration::from_millis(interval as u64));
+            info!("Checking project repositories for updates");
             // println!("Checking project repositories for updates"); // debug
-
             for project in &mut *temp_projects { // Uhhh
                 let query_result = get_remote_git_repository_commits(&project.url);
                 if query_result.is_err() {
-                    println!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap());
+                    error!(format!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap()));
                     continue;
                 }
 
@@ -71,21 +78,23 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                 for branch in &branches {
                     let mut short_hash = branch.latest_commit_hash.clone();
                     short_hash.truncate(7);
-                    // println!("Current branch is {}. Current short commit hash is {hash}.", branch.name, hash = short_hash); // debug
+                    info!(format!("Current branch is {}. Current short commit hash is {hash}.", branch.name, hash = short_hash));
                     let cached_branch = project.branches.iter().find(|&b| b.name == branch.name);
                     if cached_branch.is_some() && cached_branch.unwrap().latest_commit_hash == branch.latest_commit_hash {
                         continue;
                     }
                     // else
-                    println!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name);
-
+                    
+                    info!(format!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name));
+                    
                     s.send(Messages::Terminate);
-
+                    
                     let procedure_immediate_result = run_project_procedures(&project, &branch, r.clone());
+                    
                     if procedure_immediate_result.is_err() {
-                        println!("Error occurred while running procedure: {:?}", procedure_immediate_result);
+                        error!(format!("Error occurred while running procedure: {:?}", procedure_immediate_result));
                     } else {
-                        println!("Update succeeded.")
+                        info!("Update succeeded.")
                     }
                 }
 
@@ -109,7 +118,7 @@ fn run_project_procedures(project: &Project, branch: &Branch, r1: Receiver<Messa
 
         thread::spawn(move || {
             for command in &commands {
-                println!("[{}] Running command: {}", path, command);
+                info!(format!("[{}] Running command: {}", path, command));
                 let result_child_process = run_procedure_command(command, &path);
                 if result_child_process.is_err() {
                     break;
@@ -153,7 +162,7 @@ fn log_child_output(child_process: &mut Child, path: &str, command: &str, r: &Re
             }
             i = stdout_lines.next();
         }
-        println!("[{}] Command ({}): {}", path, command, i.unwrap().unwrap());
+        info!(format!("[{}] Command ({}): {}", path, command, line.unwrap()));
     }
 }
 

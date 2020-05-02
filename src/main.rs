@@ -54,9 +54,9 @@ fn main() -> Result<(), Error> {
 fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> thread::JoinHandle<()> {
     println!("Spawning updater thread");
     let updater_projects_ref = Arc::clone(&projects);
+    let (s, r) = unbounded();
     thread::spawn(move || {
         let mut temp_projects = updater_projects_ref.lock().unwrap();
-        let (s, r) = unbounded();
         loop {
             // println!("Checking project repositories for updates"); // debug
 
@@ -110,9 +110,6 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
             // child_process.kill().except("Command was not running.");
             // println!("Received test message")
         // }
-
-        let r = Arc::new(&r1);
-
         thread::spawn(move || {
             for command in &commands {
                 println!("[{}] Running command: {}", path, command);
@@ -135,7 +132,7 @@ fn log_child_output(child_process: &mut Child, path: &str, command: &str) {
     let stdout = child_process.stdout.as_mut().unwrap();
     let stdout_reader = BufReader::new(stdout);
     let mut stdout_lines = stdout_reader.lines();
-    
+
     loop {
         let mut i = stdout_lines.next();
         while i.is_none() {             // blocking until new line is available

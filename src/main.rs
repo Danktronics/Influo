@@ -1,13 +1,13 @@
 // external+builtin dependencies
 use std::fs;
-use std::io::{Read, BufReader, BufRead};
+use std::io::{BufReader, BufRead};
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
-use std::process::{Child, ExitStatus};
+use std::process::Child;
 use failure::{Error, err_msg};
 use serde_json::Value;
-use crossbeam_channel::{unbounded, Sender, Receiver};
+use crossbeam_channel::{unbounded, Receiver};
 
 // project dependencies
 mod model;
@@ -61,6 +61,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
     info!("Spawning updater thread");
     let updater_projects_ref = Arc::clone(&projects);
     let (s, r) = unbounded();
+    let mut send_term: bool = false;
     thread::spawn(move || {
         let mut temp_projects = updater_projects_ref.lock().unwrap();
         loop {
@@ -86,9 +87,11 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                     // else
 
                     info!(format!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name));
-
-                    s.send(Messages::Terminate);
-
+                    if send_term {
+                        s.send(Messages::Terminate).expect("Unable to send terminate signal!");
+                    } else {
+                        send_term = true;
+                    }
                     let procedure_immediate_result = run_project_procedures(&project, &branch, r.clone());
 
                     if procedure_immediate_result.is_err() {
@@ -191,7 +194,7 @@ fn read_configuration() -> Result<Value, Error> {
 
 #[derive(PartialEq)]
 enum Messages {
-    Test, // dev
+    // Test, // dev
     Terminate,
-    Terminated,
+    // Terminated,
 }

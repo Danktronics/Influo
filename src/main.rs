@@ -15,13 +15,18 @@ mod logger;
 use model::project::Project;
 use model::project::branch::Branch;
 use system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
+use logger::{LOGGER, Logger, LogLevel};
 
 fn main() -> Result<(), Error> {
     println!("Influo is running!");
-    info!("test");
 
     // Load Configuration
     let config: Value = read_configuration()?;
+    if config["log_level"].is_string() {
+        LOGGER.lock().unwrap().set_log_level(Logger::string_to_log_level(&config["log_level"].as_str().unwrap()));
+    }
+
+    info!("test");
 
     let raw_projects: &Value = &config["projects"];
     if !raw_projects.is_array() {

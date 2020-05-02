@@ -1,9 +1,16 @@
-pub static logger_instance: Logger = Logger::new(LogLevel::Warn);
+use lazy_static::lazy_static;
+use std::sync::Mutex;
 
+lazy_static! {
+    pub static ref LOGGER: Mutex<Logger> = Mutex::new(Logger::new(LogLevel::Warn));
+}
+
+#[derive(Copy, Clone)]
 pub enum LogLevel {
-    Error = 0,
-    Warn = 1,
-    Info = 2,
+    Unknown = 0,
+    Error = 1,
+    Warn = 2,
+    Info = 3,
 }
 
 pub struct Logger {
@@ -23,41 +30,58 @@ impl Logger {
 
     pub fn log(&self, msg: &str, log_level: LogLevel) {
         let log_level_num = log_level as u8;
-        if log_level_num as u8 > self.log_level as u8 {
+        if log_level_num > self.log_level as u8 {
             return;
         }
 
         let level: &str = if log_level_num == 0 {
-            "ERROR"
+            "UNKNOWN"
         } else if log_level_num == 1 {
-            "WARN"
+            "ERROR"
         } else if log_level_num == 2 {
-            "INFO"
+            "WARN"
+        } else if log_level_num == 3 {
+            "ERROR"
         } else {
             "OTHER"
         };
 
         println!("[{}] {}", level, msg);
     }
+
+    pub fn string_to_log_level(str_level: &str) -> LogLevel {
+        if str_level == "error" {
+            LogLevel::Error
+        } else if str_level == "warn" {
+            LogLevel::Warn
+        } else if str_level == "info" {
+            LogLevel::Info
+        } else {
+            LogLevel::Unknown
+        }
+    }
 }
 
+#[macro_export]
 macro_rules! error {
     ($msg:expr) => {{
-        use $crate::logger::{logger_instance, LogLevel};
-        logger_instance::log($msg, LogLevel::Error);
+        use $crate::logger::{LOGGER, LogLevel};
+        LOGGER.lock().unwrap().log($msg, LogLevel::Error);
     }}
 }
 
+#[macro_export]
 macro_rules! warn {
     ($msg:expr) => {{
-        use $crate::logger::{logger_instance, LogLevel};
-        logger_instance::log($msg, LogLevel::Warn);
+        use $crate::logger::{LOGGER, LogLevel};
+        LOGGER.lock().unwrap().log($msg, LogLevel::Warn);
     }}
 }
 
+#[macro_export]
 macro_rules! info {
     ($msg:expr) => {{
-        use $crate::logger::{logger_instance, LogLevel};
-        logger_instance::log($msg, LogLevel::Info);
+        use $crate::logger::{LOGGER, LogLevel};
+        LOGGER.lock().unwrap().log($msg, LogLevel::Info);
     }}
 }

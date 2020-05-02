@@ -1,13 +1,13 @@
 // external+builtin dependencies
 use std::fs;
-use std::io::{Read, BufReader, BufRead};
+use std::io::{BufReader, BufRead};
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
-use std::process::{Child, ExitStatus};
+use std::process::Child;
 use failure::{Error, err_msg};
 use serde_json::Value;
-use crossbeam_channel::{unbounded, Sender, Receiver};
+use crossbeam_channel::{unbounded, Receiver};
 
 // project dependencies
 mod model;
@@ -61,6 +61,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
     info!("Spawning updater thread");
     let updater_projects_ref = Arc::clone(&projects);
     let (s, r) = unbounded();
+    let mut send_term: bool = false;
     thread::spawn(move || {
         let mut temp_projects = updater_projects_ref.lock().unwrap();
         loop {
@@ -84,13 +85,15 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                         continue;
                     }
                     // else
-                    
+
                     info!(format!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name));
-                    
-                    s.send(Messages::Terminate);
-                    
+                    if send_term {
+                        s.send(Messages::Terminate).expect("Unable to send terminate signal!");
+                    } else {
+                        send_term = true;
+                    }
                     let procedure_immediate_result = run_project_procedures(&project, &branch, r.clone());
-                    
+
                     if procedure_immediate_result.is_err() {
                         error!(format!("Error occurred while running procedure: {:?}", procedure_immediate_result));
                     } else {
@@ -139,21 +142,24 @@ fn run_project_procedures(project: &Project, branch: &Branch, r1: Receiver<Messa
 }
 
 fn log_child_output(child_process: &mut Child, path: &str, command: &str, r: &Receiver<Messages>) -> bool {
-    let stdout = child_process.stdout.as_mut().unwrap();
+    let stdout = child_process.stdout.take().unwrap();
     let stdout_reader = BufReader::new(stdout);
     let mut stdout_lines = stdout_reader.lines();
 
     loop {
         let mut i = stdout_lines.next();
-        while i.is_none() {                                     // blocking until new line is available
-            let status = child_process.try_wait().unwrap().unwrap();
-            if status.success() {
-                return true;
+        while i.is_none() {                                     // blocking until new line is available=
+            let possible_status = child_process.try_wait().unwrap();
+            if !possible_status.is_none() {                     // if process completed
+                let status = possible_status.unwrap();
+                if status.success() {
+                    return true;
+                }
+                match status.code() {
+                    Some(code) => {println!("Exited with status code: {}", code); return false}
+                    None       => {println!("Process terminated by signal"); return false}
+                };
             }
-            match status.code() {
-                Some(code) => {println!("Exited with status code: {}", code); return false}
-                None       => {println!("Process terminated by signal"); return false}
-            };
             if let Ok(msg) = r.try_recv() {                     // If new message is available
                 if msg == Messages::Terminate {
                     child_process.kill().expect("Command was not running.");
@@ -162,7 +168,7 @@ fn log_child_output(child_process: &mut Child, path: &str, command: &str, r: &Re
             }
             i = stdout_lines.next();
         }
-        info!(format!("[{}] Command ({}): {}", path, command, line.unwrap()));
+        info!(format!("[{}] Command ({}): {}", path, command, i.unwrap().unwrap()));
     }
 }
 
@@ -173,7 +179,7 @@ fn read_configuration() -> Result<Value, Error> {
 
 #[derive(PartialEq)]
 enum Messages {
-    Test, // dev
+    // Test, // dev
     Terminate,
-    Terminated,
+    // Terminated,
 }

@@ -1,13 +1,13 @@
 // external+builtin dependencies
 use std::fs;
-use std::io::{Read, BufReader, BufRead};
+use std::io::{BufReader, BufRead};
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
-use std::process::{Child, ExitStatus};
+use std::process::Child;
 use failure::{Error, err_msg};
 use serde_json::Value;
-use crossbeam_channel::{unbounded, Sender, Receiver};
+use crossbeam_channel::{unbounded, Receiver};
 
 // project dependencies
 mod model;
@@ -87,7 +87,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
 
                     info!(format!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name));
 
-                    s.send(Messages::Terminate);
+                    s.send(Messages::Terminate).expect("Unable to send terminate signal!");
 
                     let procedure_immediate_result = run_project_procedures(&project, &branch, r.clone());
 
@@ -147,7 +147,7 @@ fn log_child_output(child_process: &mut Child, path: &str, command: &str, r: &Re
         let mut i = stdout_lines.next();
         while i.is_none() {                                     // blocking until new line is available=
             let possible_status = child_process.try_wait().unwrap();
-            if !possible_status.is_none() {
+            if !possible_status.is_none() {                     // if process completed
                 let status = possible_status.unwrap();
                 if status.success() {
                     return true;
@@ -176,7 +176,7 @@ fn read_configuration() -> Result<Value, Error> {
 
 #[derive(PartialEq)]
 enum Messages {
-    Test, // dev
+    // Test, // dev
     Terminate,
-    Terminated,
+    // Terminated,
 }

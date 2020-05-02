@@ -78,9 +78,10 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                     }
                     // else
                     println!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name);
-                    s.send(Messages::Test);
 
-                    let procedure_immediate_result = run_project_procedures(&project, &branch);
+                    s.send(Messages::Terminate);
+
+                    let procedure_immediate_result = run_project_procedures(&project, &branch, r.clone());
                     if procedure_immediate_result.is_err() {
                         println!("Error occurred while running procedure: {:?}", procedure_immediate_result);
                     } else {
@@ -95,21 +96,17 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
     })
 }
 
-fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Error> {
+fn run_project_procedures(project: &Project, branch: &Branch, r1: Receiver<Messages>) -> Result<(), Error> {
     for procedure in &project.procedures {
         let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
         if branch_in_procedure.is_none() {
             continue;
         }
-
         let repository_name: String = setup_git_repository(&project.url, &procedure.deploy_path)?;
         let path = format!("{}/{}", procedure.deploy_path, repository_name);
         let commands: Vec<String> = procedure.commands.clone();
+        let r = r1.clone();
 
-        // if r1.recv()? == Messages::Test {
-            // child_process.kill().except("Command was not running.");
-            // println!("Received test message")
-        // }
         thread::spawn(move || {
             for command in &commands {
                 println!("[{}] Running command: {}", path, command);
@@ -120,22 +117,40 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
 
                 // Print std from child process
                 let mut child_process: Child = result_child_process.unwrap();
-                log_child_output(&mut child_process, &path, &command);
+                if !log_child_output(&mut child_process, &path, &command, &r){
+                    println!("Skipping the remaining commands.");
+                    break;
+                }
             }
+            println!("Work appeared to complete successfully!")
         });
     }
 
     Ok(())
 }
 
-fn log_child_output(child_process: &mut Child, path: &str, command: &str) {
+fn log_child_output(child_process: &mut Child, path: &str, command: &str, r: &Receiver<Messages>) -> bool {
     let stdout = child_process.stdout.as_mut().unwrap();
     let stdout_reader = BufReader::new(stdout);
     let mut stdout_lines = stdout_reader.lines();
 
     loop {
         let mut i = stdout_lines.next();
-        while i.is_none() {             // blocking until new line is available
+        while i.is_none() {                                     // blocking until new line is available
+            let status = child_process.try_wait().unwrap().unwrap();
+            if status.success() {
+                return true;
+            }
+            match status.code() {
+                Some(code) => {println!("Exited with status code: {}", code); return false}
+                None       => {println!("Process terminated by signal"); return false}
+            };
+            if let Ok(msg) = r.try_recv() {                     // If new message is available
+                if msg == Messages::Terminate {
+                    child_process.kill().expect("Command was not running.");
+                    return false;
+                }
+            }
             i = stdout_lines.next();
         }
         println!("[{}] Command ({}): {}", path, command, i.unwrap().unwrap());

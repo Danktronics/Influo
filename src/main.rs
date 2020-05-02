@@ -147,17 +147,16 @@ fn log_child_output(child_process: &mut Child, path: &str, command: &str, r: &Re
         let mut i = stdout_lines.next();
         while i.is_none() {                                     // blocking until new line is available=
             let possible_status = child_process.try_wait().unwrap();
-            if possible_status.is_none() {
-                continue;
+            if !possible_status.is_none() {
+                let status = possible_status.unwrap();
+                if status.success() {
+                    return true;
+                }
+                match status.code() {
+                    Some(code) => {println!("Exited with status code: {}", code); return false}
+                    None       => {println!("Process terminated by signal"); return false}
+                };
             }
-            let status = possible_status.unwrap();
-            if status.success() {
-                return true;
-            }
-            match status.code() {
-                Some(code) => {println!("Exited with status code: {}", code); return false}
-                None       => {println!("Process terminated by signal"); return false}
-            };
             if let Ok(msg) = r.try_recv() {                     // If new message is available
                 if msg == Messages::Terminate {
                     child_process.kill().expect("Command was not running.");

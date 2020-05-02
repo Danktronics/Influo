@@ -9,6 +9,7 @@ use serde_json::Value;
 
 mod model;
 mod system_cmd;
+use logger;
 
 use model::project::Project;
 use model::project::branch::Branch;
@@ -16,6 +17,7 @@ use system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_pr
 
 fn main() -> Result<(), Error> {
     println!("Influo is running!");
+    info!("test");
 
     // Load Configuration
     let config: Value = read_configuration()?;

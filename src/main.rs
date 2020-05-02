@@ -56,9 +56,12 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
     let updater_projects_ref = Arc::clone(&projects);
     thread::spawn(move || {
         let mut temp_projects = updater_projects_ref.lock().unwrap();
-        let (s, r) = unbounded();
+        let (sender, receiver) = unbounded();
         loop {
             // println!("Checking project repositories for updates"); // debug
+            let s = sender.clone();
+            let r = receiver.clone();
+
             for project in &mut *temp_projects { // Uhhh
                 let query_result = get_remote_git_repository_commits(&project.url);
                 if query_result.is_err() {
@@ -77,8 +80,8 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                     }
                     // else
                     println!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name);
-                    s.send(Messages::Terminate);
-                    assert_eq!(r.recv(), Messages::Terminated);
+                    s.send(Messages::Test);
+                    // assert_eq!(r.recv(), Messages::Terminated);
                     let procedure_immediate_result = run_project_procedures(&project, &branch, s, r);
                     if procedure_immediate_result.is_err() {
                         println!("Error occurred while running procedure: {:?}", procedure_immediate_result);
@@ -94,7 +97,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
     })
 }
 
-fn run_project_procedures(project: &Project, branch: &Branch, s: crossbeam_channel::Sender, r: crossbeam_channel::Receiver) -> Result<(), Error> {
+fn run_project_procedures(project: &Project, branch: &Branch, s1: Sender<Messages>, r1: Receiver<Messages>) -> Result<(), Error> {
     for procedure in &project.procedures {
         let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
         if branch_in_procedure.is_none() {
@@ -105,7 +108,7 @@ fn run_project_procedures(project: &Project, branch: &Branch, s: crossbeam_chann
         let path = format!("{}/{}", procedure.deploy_path, repository_name);
         let commands: Vec<String> = procedure.commands.clone();
 
-        if r.recv() == Messages::Test {
+        if r1.recv()? == Messages::Test {
             // child_process.kill().except("Command was not running.");
             println!("Received test message")
         }
@@ -142,6 +145,7 @@ fn read_configuration() -> Result<Value, Error> {
     Ok(serde_json::from_str(&raw_data)?)
 }
 
+#[derive(PartialEq)]
 enum Messages {
     Test, // dev
     Terminate,

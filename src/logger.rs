@@ -43,21 +43,21 @@ impl Logger {
 
 macro_rules! error {
     ($msg:expr) => {{
-        use $crate::logger::LogLevel;
+        use $crate::logger::{logger_instance, LogLevel};
         logger_instance::log($msg, LogLevel::Error);
     }}
 }
 
 macro_rules! warn {
     ($msg:expr) => {{
-        use $crate::logger::LogLevel;
+        use $crate::logger::{logger_instance, LogLevel};
         logger_instance::log($msg, LogLevel::Warn);
     }}
 }
 
 macro_rules! info {
     ($msg:expr) => {{
-        use $crate::logger::LogLevel;
+        use $crate::logger::{logger_instance, LogLevel};
         logger_instance::log($msg, LogLevel::Info);
     }}
 }

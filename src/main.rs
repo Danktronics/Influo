@@ -79,8 +79,8 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                     // else
                     println!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name);
                     s.send(Messages::Test);
-                    // assert_eq!(r.recv(), Messages::Terminated);
-                    let procedure_immediate_result = run_project_procedures(&project, &branch, &s, &r);
+
+                    let procedure_immediate_result = run_project_procedures(&project, &branch);
                     if procedure_immediate_result.is_err() {
                         println!("Error occurred while running procedure: {:?}", procedure_immediate_result);
                     } else {
@@ -95,7 +95,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
     })
 }
 
-fn run_project_procedures(project: &Project, branch: &Branch, s1: &Sender<Messages>, r1: &Receiver<Messages>) -> Result<(), Error> {
+fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Error> {
     for procedure in &project.procedures {
         let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
         if branch_in_procedure.is_none() {
@@ -121,12 +121,6 @@ fn run_project_procedures(project: &Project, branch: &Branch, s1: &Sender<Messag
                     break;
                 }
 
-                let r = Arc::clone(&r);
-                if r.recv() == Messages::Test {
-                    // child_process.kill().except("Command was not running.");
-                    println!("Received test message")
-                }
-
                 // Print std from child process
                 let mut child_process: Child = result_child_process.unwrap();
                 log_child_output(&mut child_process, &path, &command);
@@ -145,7 +139,7 @@ fn log_child_output(child_process: &mut Child, path: &str, command: &str) {
     for line in stdout_lines {
         println!("[{}] Command ({}): {}", path, command, line.unwrap());
     }
-    
+
     /*println!("{:?}", child_process.stdout);
     match child_process.stdout {
         Some(ref mut out) => {

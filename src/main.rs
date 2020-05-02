@@ -124,38 +124,6 @@ fn log_child_output(child_process: &mut Child, path: &str, command: &str) {
     for line in stdout_lines {
         println!("[{}] Command ({}): {}", path, command, line.unwrap());
     }
-    
-    /*println!("{:?}", child_process.stdout);
-    match child_process.stdout {
-        Some(ref mut out) => {
-            let mut output_string = String::new();
-            match out.read_to_string(&mut output_string) {
-                Ok(_) => {
-                    println!("{}", output_string);
-                    match child_process.try_wait() {
-                        Ok(Some(status)) => println!("[{}] Command ({}) exited with {}", path, command, status),
-                        Ok(None) => log_child_output(child_process, path, command),
-                        Err(e) => {
-                            println!("Child wait error (very bad) error: {}", e);
-                            return;
-                        },
-                    }
-                },
-                Err(_) => return,
-            };
-        }
-        None => {
-            println!("{:?}", child_process.try_wait());
-            match child_process.try_wait() {
-                Ok(Some(status)) => println!("[{}] Command ({}) exited with {}", path, command, status),
-                Ok(None) => log_child_output(child_process, path, command),
-                Err(e) => {
-                    println!("Child wait error (very bad) error: {}", e);
-                    return;
-                },
-            }
-        },
-    }*/
 }
 
 fn read_configuration() -> Result<Value, Error> {

@@ -100,7 +100,21 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
                 if result_child_process.is_err() {
                     break;
                 }
-                let child_process = result_child_process.unwrap();
+
+                // Print std from child process
+                let child_process: Child = result_child_process.unwrap();
+                loop {
+                    match child_process.stdout {
+                        Some(out) {
+                            let mut output_string = String::new();
+                            out.read_to_string(&mut output_string) {
+                                Ok(_) => println!(output_string),
+                                Err(_) => break,
+                            };
+                        }
+                        None => break,
+                    }
+                }
             }
         });
     }

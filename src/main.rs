@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::Read;
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
@@ -100,20 +101,18 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
                 if result_child_process.is_err() {
                     break;
                 }
-
+                
                 // Print std from child process
-                let child_process: Child = result_child_process.unwrap();
-                loop {
-                    match child_process.stdout {
-                        Some(out) {
-                            let mut output_string = String::new();
-                            out.read_to_string(&mut output_string) {
-                                Ok(_) => println!(output_string),
-                                Err(_) => break,
-                            };
-                        }
-                        None => break,
+                let mut child_process: Child = result_child_process.unwrap();
+                match child_process.stdout {
+                    Some(ref mut out) => {
+                        let mut output_string = String::new();
+                        match out.read_to_string(&mut output_string) {
+                            Ok(_) => println!("{}", output_string),
+                            Err(_) => break,
+                        };
                     }
+                    None => break,
                 }
             }
         });

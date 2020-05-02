@@ -53,7 +53,6 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
     thread::spawn(move || {
         let mut temp_projects = updater_projects_ref.lock().unwrap();
         loop {
-            thread::sleep(Duration::from_millis(interval as u64));
             // println!("Checking project repositories for updates"); // debug
             for project in &mut *temp_projects { // Uhhh
                 let query_result = get_remote_git_repository_commits(&project.url);
@@ -83,6 +82,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
 
                 project.update_branches(branches);
             }
+            thread::sleep(Duration::from_millis(interval as u64));
         }
     })
 }

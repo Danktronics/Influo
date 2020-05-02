@@ -26,8 +26,6 @@ fn main() -> Result<(), Error> {
         LOGGER.lock().unwrap().set_log_level(Logger::string_to_log_level(&config["log_level"].as_str().unwrap()));
     }
 
-    info!("test");
-
     let raw_projects: &Value = &config["projects"];
     if !raw_projects.is_array() {
         return Err(err_msg("Projects is invalid"));
@@ -56,17 +54,17 @@ fn main() -> Result<(), Error> {
 
 /// Interval should be in milliseconds
 fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> thread::JoinHandle<()> {
-    println!("Spawning updater thread");
+    info!("Spawning updater thread");
     let updater_projects_ref = Arc::clone(&projects);
     thread::spawn(move || {
         let mut temp_projects = updater_projects_ref.lock().unwrap();
         loop {
             thread::sleep(Duration::from_millis(interval as u64));
-            // println!("Checking project repositories for updates"); // debug
+            info!("Checking project repositories for updates");
             for project in &mut *temp_projects { // Uhhh
                 let query_result = get_remote_git_repository_commits(&project.url);
                 if query_result.is_err() {
-                    println!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap());
+                    info!(format!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap()));
                     continue;
                 }
 
@@ -108,7 +106,7 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
 
         thread::spawn(move || {
             for command in &commands {
-                println!("[{}] Running command: {}", path, command);
+                info!(format!("[{}] Running command: {}", path, command));
                 let result_child_process = run_procedure_command(command, &path);
                 if result_child_process.is_err() {
                     break;
@@ -130,7 +128,7 @@ fn log_child_output(child_process: &mut Child, path: &str, command: &str) {
     let stdout_lines = stdout_reader.lines();
 
     for line in stdout_lines {
-        println!("[{}] Command ({}): {}", path, command, line.unwrap());
+        info!(format!("[{}] Command ({}): {}", path, command, line.unwrap()));
     }
     
     /*println!("{:?}", child_process.stdout);

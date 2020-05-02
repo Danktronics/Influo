@@ -22,10 +22,10 @@ fn run_system_command(command: &Vec<&String>, path: &str) -> Result<String, Erro
     };
     let output = raw_output?;
     if !output.status.success() {
-        println!("{:?}", output);
+        // println!("{:?}", output); // dev
         return Err(err_msg(format!("Command failed ({:?})", command)));
     }
-    
+
     Ok(String::from_utf8(output.stdout)?)
 }
 
@@ -64,7 +64,7 @@ pub fn setup_git_repository(remote_url: &str, deploy_path: &str) -> Result<Strin
     let repository_name: &str = possible_repository_name.unwrap().as_str();
 
     let clone_attempt = run_system_command(&vec!(&format!("git clone {}", remote_url)), deploy_path);
-    println!("{:?}", clone_attempt);
+    // println!("{:?}", clone_attempt); // dev
     if clone_attempt.is_err() {
         let pull_attempt = run_system_command(&vec!(&"git pull".to_string()), &format!("{}/{}", deploy_path, repository_name));
         if pull_attempt.is_err() {

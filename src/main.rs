@@ -64,7 +64,9 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
 
                 let branches = query_result.unwrap();
                 for branch in &branches {
-                    println!("{:?}", branch);
+                    let mut short_hash = branch.latest_commit_hash.clone();
+                    short_hash.truncate(7);
+                    println!("Current branch is {}. Current short commit hash is {hash}.", branch.name, hash = short_hash);
                     let cached_branch = project.branches.iter().find(|&b| b.name == branch.name);
                     if cached_branch.is_some() && cached_branch.unwrap().latest_commit_hash == branch.latest_commit_hash {
                         continue;

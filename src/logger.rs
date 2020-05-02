@@ -1,4 +1,4 @@
-static logger: Logger = Logger::new(LogLevel::Warn);
+static logger_instance: Logger = Logger::new(LogLevel::Warn);
 
 pub enum LogLevel {
     Error = 0,
@@ -44,20 +44,20 @@ impl Logger {
 macro_rules! error {
     ($msg:expr) => {{
         use $crate::logger::LogLevel;
-        logger::log($msg, LogLevel::Error);
+        logger_instance::log($msg, LogLevel::Error);
     }}
 }
 
 macro_rules! warn {
     ($msg:expr) => {{
         use $crate::logger::LogLevel;
-        logger::log($msg, LogLevel::Warn);
+        logger_instance::log($msg, LogLevel::Warn);
     }}
 }
 
 macro_rules! info {
     ($msg:expr) => {{
         use $crate::logger::LogLevel;
-        logger::log($msg, LogLevel::Info);
+        logger_instance::log($msg, LogLevel::Info);
     }}
 }

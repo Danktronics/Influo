@@ -58,7 +58,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
             for project in &mut *temp_projects { // Uhhh
                 let query_result = get_remote_git_repository_commits(&project.url);
                 if query_result.is_err() {
-                    println!("Failed to query commits for project with url {} and error {}", project.url, query_result.err().unwrap());
+                    println!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap());
                     continue;
                 }
 
@@ -103,7 +103,7 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
                 if result_child_process.is_err() {
                     break;
                 }
-                
+
                 // Print std from child process
                 let mut child_process: Child = result_child_process.unwrap();
                 match child_process.stdout {

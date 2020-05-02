@@ -1,9 +1,9 @@
 use std::fs;
-use std::io::Read;
+use std::io::{Read, BufReader, BufRead};
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
-use std::process::Child;
+use std::process::{Child, ExitStatus};
 use failure::{Error, err_msg};
 use serde_json::Value;
 
@@ -106,21 +106,54 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
                 
                 // Print std from child process
                 let mut child_process: Child = result_child_process.unwrap();
-                match child_process.stdout {
-                    Some(ref mut out) => {
-                        let mut output_string = String::new();
-                        match out.read_to_string(&mut output_string) {
-                            Ok(_) => println!("{}", output_string),
-                            Err(_) => break,
-                        };
-                    }
-                    None => break,
-                }
+                log_child_output(&mut child_process, &path, &command);
             }
         });
     }
 
     Ok(())
+}
+
+fn log_child_output(child_process: &mut Child, path: &str, command: &str) {
+    let stdout = child_process.stdout.as_mut().unwrap();
+    let stdout_reader = BufReader::new(stdout);
+    let stdout_lines = stdout_reader.lines();
+
+    for line in stdout_lines {
+        println!("[{}] Command ({}): {}", path, command, line.unwrap());
+    }
+    
+    /*println!("{:?}", child_process.stdout);
+    match child_process.stdout {
+        Some(ref mut out) => {
+            let mut output_string = String::new();
+            match out.read_to_string(&mut output_string) {
+                Ok(_) => {
+                    println!("{}", output_string);
+                    match child_process.try_wait() {
+                        Ok(Some(status)) => println!("[{}] Command ({}) exited with {}", path, command, status),
+                        Ok(None) => log_child_output(child_process, path, command),
+                        Err(e) => {
+                            println!("Child wait error (very bad) error: {}", e);
+                            return;
+                        },
+                    }
+                },
+                Err(_) => return,
+            };
+        }
+        None => {
+            println!("{:?}", child_process.try_wait());
+            match child_process.try_wait() {
+                Ok(Some(status)) => println!("[{}] Command ({}) exited with {}", path, command, status),
+                Ok(None) => log_child_output(child_process, path, command),
+                Err(e) => {
+                    println!("Child wait error (very bad) error: {}", e);
+                    return;
+                },
+            }
+        },
+    }*/
 }
 
 fn read_configuration() -> Result<Value, Error> {

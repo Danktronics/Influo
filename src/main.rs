@@ -84,13 +84,13 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                         continue;
                     }
                     // else
-                    
+
                     info!(format!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name));
-                    
+
                     s.send(Messages::Terminate);
-                    
+
                     let procedure_immediate_result = run_project_procedures(&project, &branch, r.clone());
-                    
+
                     if procedure_immediate_result.is_err() {
                         error!(format!("Error occurred while running procedure: {:?}", procedure_immediate_result));
                     } else {
@@ -115,54 +115,72 @@ fn run_project_procedures(project: &Project, branch: &Branch, r1: Receiver<Messa
         let path = format!("{}/{}", procedure.deploy_path, repository_name);
         let commands: Vec<String> = procedure.commands.clone();
         let r = r1.clone();
+        let mut success = true;
 
         thread::spawn(move || {
-            for command in &commands {
+            for command in commands {
                 info!(format!("[{}] Running command: {}", path, command));
-                let result_child_process = run_procedure_command(command, &path);
+                let result_child_process = run_procedure_command(&command, &path);
                 if result_child_process.is_err() {
                     break;
                 }
+                let mut child_process: Child = result_child_process.unwrap();
 
                 // Print std from child process
-                let mut child_process: Child = result_child_process.unwrap();
-                if !log_child_output(&mut child_process, &path, &command, &r){
+                thread::spawn(|| {
+                    log_child_output(&mut child_process, &path, &command);
+                });
+
+                // kill child on signal
+                if !child_killer(&mut child_process, &r){
                     println!("Skipping the remaining commands.");
+                    success = false;
                     break;
                 }
             }
-            println!("Work appeared to complete successfully!")
+            if success {println!("Work completed successfully!");}
         });
     }
 
     Ok(())
 }
 
-fn log_child_output(child_process: &mut Child, path: &str, command: &str, r: &Receiver<Messages>) -> bool {
-    let stdout = child_process.stdout.as_mut().unwrap();
-    let stdout_reader = BufReader::new(stdout);
-    let mut stdout_lines = stdout_reader.lines();
-
+fn child_killer(child: &mut Child, r: &Receiver<Messages>) -> bool {
     loop {
-        let mut i = stdout_lines.next();
-        while i.is_none() {                                     // blocking until new line is available
-            let status = child_process.try_wait().unwrap().unwrap();
+        let possible_status = child.try_wait().unwrap();
+        if !possible_status.is_none() {                     // if process completed
+            let status = possible_status.unwrap();
             if status.success() {
                 return true;
             }
             match status.code() {
-                Some(code) => {println!("Exited with status code: {}", code); return false}
+                Some(code) => {println!("Exited with status code {}", code); return false}
                 None       => {println!("Process terminated by signal"); return false}
             };
-            if let Ok(msg) = r.try_recv() {                     // If new message is available
-                if msg == Messages::Terminate {
-                    child_process.kill().expect("Command was not running.");
-                    return false;
-                }
-            }
-            i = stdout_lines.next();
         }
-        info!(format!("[{}] Command ({}): {}", path, command, line.unwrap()));
+        if let Ok(msg) = r.try_recv() {                     // If new message is available
+            if msg == Messages::Terminate {
+                println!("Terminating command.");
+                child.kill().expect("Command was not running.");
+                return false;
+            }
+        }
+    }
+}
+
+fn log_child_output(child_process: &mut Child, path: &str, command: &str) {
+    let stdout = child_process.stdout.take().unwrap();
+    let stdout_reader = BufReader::new(stdout);
+    let mut stdout_lines = stdout_reader.lines();
+
+    loop {
+        let i = stdout_lines.next();                        // blocking
+        if !i.is_none() {
+            info!(format!("[{}] Command ({}): {}", path, command, i.unwrap().unwrap()));
+        }
+        if !child_process.try_wait().unwrap().is_none() {   // commit suicide if child dies
+            return;
+        }
     }
 }
 

@@ -7,14 +7,14 @@ use std::sync::{Arc, Mutex};
 use std::process::Child;
 use failure::{Error, err_msg};
 use serde_json::Value;
-use crossbeam_channel::unbounded;
+use crossbeam-channel::unbounded;
 
 // project dependencies
 mod model;
 mod system_cmd;
 
 use model::project::Project;
-use model::project::messages::Messages;
+// use model::project::messages::Messages; // maybe future
 use model::project::branch::Branch;
 use system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
 
@@ -94,7 +94,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
     })
 }
 
-fn run_project_procedures(project: &Project, branch: &Branch, s: Sender, r: Receiver) -> Result<(), Error> {
+fn run_project_procedures(project: &Project, branch: &Branch, s: crossbeam_channel::Sender, r: crossbeam_channel::Receiver) -> Result<(), Error> {
     for procedure in &project.procedures {
         let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
         if branch_in_procedure.is_none() {
@@ -104,6 +104,11 @@ fn run_project_procedures(project: &Project, branch: &Branch, s: Sender, r: Rece
         let repository_name: String = setup_git_repository(&project.url, &procedure.deploy_path)?;
         let path = format!("{}/{}", procedure.deploy_path, repository_name);
         let commands: Vec<String> = procedure.commands.clone();
+
+        if r.recv() == Messages::Test {
+            // child_process.kill().except("Command was not running.");
+            println!("Received test message")
+        }
 
         thread::spawn(move || {
             for command in &commands {
@@ -135,4 +140,10 @@ fn run_project_procedures(project: &Project, branch: &Branch, s: Sender, r: Rece
 fn read_configuration() -> Result<Value, Error> {
     let raw_data: String = fs::read_to_string("config.json")?;
     Ok(serde_json::from_str(&raw_data)?)
+}
+
+enum Messages {
+    Test, // dev
+    Terminate,
+    Terminated,
 }

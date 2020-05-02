@@ -54,11 +54,11 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
         let mut temp_projects = updater_projects_ref.lock().unwrap();
         loop {
             thread::sleep(Duration::from_millis(interval as u64));
-            println!("Checking project repositories for updates");
+            // println!("Checking project repositories for updates"); // debug
             for project in &mut *temp_projects { // Uhhh
                 let query_result = get_remote_git_repository_commits(&project.url);
                 if query_result.is_err() {
-                    println!("Failed to query commits for project with url {} and error {}", project.url, query_result.err().unwrap());
+                    println!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap());
                     continue;
                 }
 
@@ -66,16 +66,18 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                 for branch in &branches {
                     let mut short_hash = branch.latest_commit_hash.clone();
                     short_hash.truncate(7);
-                    println!("Current branch is {}. Current short commit hash is {hash}.", branch.name, hash = short_hash);
+                    // println!("Current branch is {}. Current short commit hash is {hash}.", branch.name, hash = short_hash); // debug
                     let cached_branch = project.branches.iter().find(|&b| b.name == branch.name);
                     if cached_branch.is_some() && cached_branch.unwrap().latest_commit_hash == branch.latest_commit_hash {
                         continue;
                     }
-
-                    println!("Branch change detected (new commit or new branch)");
+                    // else
+                    println!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name);
                     let procedure_immediate_result = run_project_procedures(&project, &branch);
                     if procedure_immediate_result.is_err() {
                         println!("Error occurred while running procedure: {:?}", procedure_immediate_result);
+                    } else {
+                        println!("Update succeeded.")
                     }
                 }
 
@@ -103,7 +105,7 @@ fn run_project_procedures(project: &Project, branch: &Branch) -> Result<(), Erro
                 if result_child_process.is_err() {
                     break;
                 }
-                
+
                 // Print std from child process
                 let mut child_process: Child = result_child_process.unwrap();
                 log_child_output(&mut child_process, &path, &command);

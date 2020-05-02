@@ -1,12 +1,12 @@
 static logger: Logger = Logger::new(LogLevel::Warn);
 
-enum LogLevel {
+pub enum LogLevel {
     Error = 0,
     Warn = 1,
     Info = 2,
 }
 
-struct Logger {
+pub struct Logger {
     log_level: LogLevel
 }
 
@@ -22,15 +22,16 @@ impl Logger {
     }
 
     pub fn log(&self, msg: &str, log_level: LogLevel) {
-        if log_level as u8 > self.log_level as u8 {
+        let log_level_num = log_level as u8;
+        if log_level_num as u8 > self.log_level as u8 {
             return;
         }
 
-        let level: &str = if log_level == 0 {
+        let level: &str = if log_level_num == 0 {
             "ERROR"
-        } else if log_level == 1 {
+        } else if log_level_num == 1 {
             "WARN"
-        } else if log_level == 2 {
+        } else if log_level_num == 2 {
             "INFO"
         } else {
             "OTHER"
@@ -42,18 +43,21 @@ impl Logger {
 
 macro_rules! error {
     ($msg:expr) => {{
-        logger.log($msg, LogLevel::Error);
+        use $crate::logger::LogLevel;
+        logger::log($msg, LogLevel::Error);
     }}
 }
 
 macro_rules! warn {
     ($msg:expr) => {{
-        logger.log($msg, LogLevel::Warn);
+        use $crate::logger::LogLevel;
+        logger::log($msg, LogLevel::Warn);
     }}
 }
 
 macro_rules! info {
     ($msg:expr) => {{
-        logger.log($msg, LogLevel::Info);
+        use $crate::logger::LogLevel;
+        logger::log($msg, LogLevel::Info);
     }}
 }

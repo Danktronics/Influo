@@ -15,7 +15,7 @@ mod logger;
 use model::project::Project;
 use model::project::branch::Branch;
 use system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
-use logger::{LOGGER, Logger, LogLevel};
+use logger::{LOGGER, Logger};
 
 fn main() -> Result<(), Error> {
     println!("Influo is running!");

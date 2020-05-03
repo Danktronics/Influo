@@ -1,6 +1,7 @@
-use std::process::Command;
 use std::fs;
-use std::process::{Child, Stdio};
+use tokio::process::{Child, Stdio};
+use tokio::io::{BufReader, AsyncBufReadExt};
+use tokio::process::Command;
 use failure::{Error, err_msg};
 use regex::Regex;
 

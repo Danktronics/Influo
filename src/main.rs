@@ -1,4 +1,4 @@
-// external+builtin dependencies
+// Dependencies
 use std::fs;
 use std::io::{BufReader, BufRead};
 use std::thread;
@@ -8,21 +8,22 @@ use std::process::{Child, ChildStdout};
 use failure::{Error, err_msg};
 use serde_json::Value;
 use crossbeam_channel::{unbounded, Receiver};
+use tokio::io::{BufReader, AsyncBufReadExt};
+use tokio::process::Command;
 
-// project dependencies
+// Project Modules
 mod model;
 mod system_cmd;
 #[macro_use]
 mod logger;
 
 use model::project::Project;
-// use model::project::messages::Messages; // maybe future
 use model::project::branch::Branch;
 use system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
 use logger::{LOGGER, Logger};
 
 fn main() -> Result<(), Error> {
-    println!("Influo is running!");
+    info!("Influo is running!");
 
     // Load Configuration
     let config: Value = read_configuration()?;
@@ -30,6 +31,7 @@ fn main() -> Result<(), Error> {
         LOGGER.lock().unwrap().set_log_level(Logger::string_to_log_level(&config["log_level"].as_str().unwrap()));
     }
 
+    // Process and cache projects
     let raw_projects: &Value = &config["projects"];
     if !raw_projects.is_array() {
         return Err(err_msg("Projects is invalid"));
@@ -38,20 +40,21 @@ fn main() -> Result<(), Error> {
     let projects: Arc<Mutex<Vec<Project>>> = Arc::new(Mutex::new(Vec::new()));
     for raw_project in raw_projects_array {
         let mut temp_projects = projects.lock().unwrap();
-        temp_projects.push(Project::new(&raw_project["url"], &raw_project["procedures"], &config["default_deploy_path"])?);
+        temp_projects.push(Project::new(&raw_project, &config["default_deploy_path"])?);
     }
 
+    // Retrieve update interval and start the updater thread
     let update_interval: &Value = &config["update_interval"];
-    if update_interval.is_null() || !update_interval.is_number() {
-        setup_updater_thread(30, projects);
+    let thread_join_handle: thread::JoinHandle<()> = if update_interval.is_null() || !update_interval.is_number() {
+        setup_updater_thread(30, projects)
     } else {
         let interval: Option<u64> = update_interval.as_u64();
         if interval.is_none() || interval.unwrap() > u32::MAX as u64 {
             panic!("The integer provided exceeded the u32 max");
         }
-        let join_handle: thread::JoinHandle<()> = setup_updater_thread(interval.unwrap() as u32 * 1000, projects);
-        join_handle.join().unwrap();
+        setup_updater_thread(interval.unwrap() as u32 * 1000, projects)
     }
+    thread_join_handle.join().unwrap();
 
     Ok(())
 }
@@ -66,9 +69,8 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
         let mut temp_projects = updater_projects_ref.lock().unwrap();
         loop {
             thread::sleep(Duration::from_millis(interval as u64));
-            info!("Checking project repositories for updates");
-            // println!("Checking project repositories for updates"); // debug
-            for project in &mut *temp_projects { // Uhhh
+            debug!("Checking project repositories for updates");
+            for project in &mut *temp_projects {
                 let query_result = get_remote_git_repository_commits(&project.url);
                 if query_result.is_err() {
                     error!(format!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap()));
@@ -77,17 +79,13 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
 
                 let branches = query_result.unwrap();
                 for branch in &branches {
-                    if branch.name != "master" {
-                        continue;
-                    }
                     let mut short_hash = branch.latest_commit_hash.clone();
                     short_hash.truncate(7);
-                    info!(format!("Current branch is {}. Current short commit hash is {hash}.", branch.name, hash = short_hash));
+                    debug!(format!("Current branch is {}. Current short commit hash is {hash}.", branch.name, hash = short_hash));
                     let cached_branch = project.branches.iter().find(|&b| b.name == branch.name);
                     if cached_branch.is_some() && cached_branch.unwrap().latest_commit_hash == branch.latest_commit_hash {
                         continue;
                     }
-                    // else
 
                     info!(format!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name));
                     if send_term {
@@ -105,9 +103,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                 }
 
                 project.update_branches(branches);
-                break;
             }
-            thread::sleep(Duration::from_millis(interval as u64));
         }
     })
 }
@@ -196,11 +192,4 @@ fn log_child_output(stdout: ChildStdout, log_format: &str) {
 fn read_configuration() -> Result<Value, Error> {
     let raw_data: String = fs::read_to_string("config.json")?;
     Ok(serde_json::from_str(&raw_data)?)
-}
-
-#[derive(PartialEq)]
-enum Messages {
-    // Test, // dev
-    Terminate,
-    // Terminated,
 }

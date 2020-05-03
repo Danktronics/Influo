@@ -15,14 +15,14 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn new(raw_url: &Value, raw_procedures: &Value, raw_default_deploy_path: &Value) -> Result<Project, Error> {
-        if !raw_url.is_string() {
+    pub fn new(raw_project: &Value, raw_default_deploy_path: &Value) -> Result<Project, Error> {
+        if !raw_project["url"].is_string() {
             return Err(err_msg("URL is invalid"));
         }
         let url: &str = raw_url.as_str().unwrap();
 
-        if !raw_procedures.is_array() {
-            return Err(err_msg("Procedures is not an array"));
+        if !raw_project["procedures"].is_array() {
+            return Err(err_msg("Procedures is invalid"));
         }
         let raw_procedures_array: &Vec<Value> = raw_procedures.as_array().unwrap();
         let mut procedures: Vec<Procedure> = Vec::new();

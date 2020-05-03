@@ -63,14 +63,13 @@ fn main() -> Result<(), Error> {
 fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> thread::JoinHandle<()> {
     info!("Spawning updater thread");
     let updater_projects_ref = Arc::clone(&projects);
-    let (s, r) = unbounded();
-    let mut send_term: bool = false;
+    let (channel_sender, channel_receiver) = unbounded();
     thread::spawn(move || {
-        let mut temp_projects = updater_projects_ref.lock().unwrap();
+        let mut unlocked_projects = updater_projects_ref.lock().unwrap();
         loop {
             thread::sleep(Duration::from_millis(interval as u64));
             debug!("Checking project repositories for updates");
-            for project in &mut *temp_projects {
+            for project in &mut *unlocked_projects {
                 let query_result = get_remote_git_repository_commits(&project.url);
                 if query_result.is_err() {
                     error!(format!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap()));

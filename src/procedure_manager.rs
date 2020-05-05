@@ -12,7 +12,7 @@ use crate::model::channel::{ThreadConnection, ThreadProcedureConnection};
 use crate::model::channel::message::{Command, Response};
 use crate::system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
 
-pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thread_connections: Vec<ThreadProcedureConnection>) -> Result<(), Error> {
+pub fn run_project_procedures(project: &Project, branch: &Branch, mut procedure_thread_connections: Vec<ThreadProcedureConnection>) -> Result<(), Error> {
     for procedure in &project.procedures {
         let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
         if branch_in_procedure.is_none() {
@@ -22,8 +22,8 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
         let path = format!("{}/{}", procedure.deploy_path, repository_name);
         let commands: Vec<String> = procedure.commands.clone();
 
-        let procedure_connection: ThreadProcedureConnection = ThreadProcedureConnection::new(project.url, branch.name, procedure.name);
-        procedure_thread_connections.push(procedure_connection);
+        let procedure_connection: ThreadProcedureConnection = ThreadProcedureConnection::new(project.url.clone(), branch.name.clone(), procedure.name.clone());
+        procedure_thread_connections.push(procedure_connection.clone());
 
         thread::spawn(move || {
             let mut success = true;
@@ -40,13 +40,14 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
                     let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
                     let mut stdout_reader = BufReader::new(stdout).lines();
                     loop {
-                        let result = stdout_reader.next_line().await;
-                        if result.is_err() {
-                            break;
-                        }
-                        if result.unwrap().is_some() {
-                            info!(format!("[{}] Command ({}): {}", path, command, result.unwrap().unwrap()));
-                        }
+                        let result = match stdout_reader.next_line().await {
+                            Ok(result) => {
+                                if result.is_some() {
+                                    info!(format!("[{}] Command ({}): {}", path, command, result.unwrap()));
+                                }
+                            },
+                            Err(e) => break,
+                        };
                     }
                 });
 

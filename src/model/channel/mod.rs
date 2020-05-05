@@ -4,9 +4,9 @@ pub mod message;
 
 use message::{Command, Response};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Channel<T> {
-    pub receiver: Receiver<T>, 
+    pub receiver: Receiver<T>,
     pub sender: Sender<T>,
 }
 
@@ -33,7 +33,7 @@ impl ThreadConnection {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ThreadProcedureConnection {
     pub remote_url: String,
     pub branch: String,

@@ -79,7 +79,7 @@ async fn manage_child(child: Child, connection: &ThreadProcedureConnection) -> b
 
     select! {
         (success, exit_code) = child_completion_future => {
-            let command_log: &str = format!("[{}] [{}] {} exited with code {}", connection.remote_url, connection.branch, connection.procedure_name, exit_code);
+            let command_log: String = format!("[{}] [{}] {} exited with code {}", connection.remote_url, connection.branch, connection.procedure_name, exit_code);
             if success {
                 info!(command_log);
             } else {

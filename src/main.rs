@@ -12,7 +12,7 @@ mod logger;
 mod model;
 mod system_cmd;
 mod procedure_manager;
-mod webserver;
+//mod webserver;
 
 use model::project::Project;
 use model::project::branch::Branch;

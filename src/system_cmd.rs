@@ -13,6 +13,7 @@ use crate::model::project::branch::Branch;
 async fn run_system_command(command: &str, path: &str) -> Result<String, Error> {
     let raw_output = if cfg!(target_os = "windows") {
         Command::new("cmd")
+                .kill_on_drop(true)
                 .current_dir(path)
                 .arg("/C")
                 .args(&vec![command])
@@ -20,6 +21,7 @@ async fn run_system_command(command: &str, path: &str) -> Result<String, Error> 
                 .await
     } else { // Assume Linux, BSD, and OSX
         Command::new("sh")
+                .kill_on_drop(true)
                 .current_dir(path)
                 .arg("-c") // Non-login and non-interactive
                 .args(&vec![command])

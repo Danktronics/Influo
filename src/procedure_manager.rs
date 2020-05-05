@@ -51,7 +51,7 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
                 });
 
                 // Blocks the thread until the child process running the command has exited
-                if !block_on(manage_child(&mut child_process, &procedure_connection)) {
+                if !block_on(manage_child(child_process, &procedure_connection)) {
                     info!(format!("Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_connection.remote_url, procedure_connection.branch, procedure_connection.procedure_name));
                     success = false;
                     break;
@@ -67,7 +67,7 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
     Ok(())
 }
 
-async fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection) -> bool {
+async fn manage_child(child: Child, connection: &ThreadProcedureConnection) -> bool {
     let t1 = get_output_on_complete(child).fuse();
     let t2 = terminate_on_command(connection).fuse();
 
@@ -75,13 +75,11 @@ async fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection)
 
     select! {
         b = t1 => return b,
-        b = t2 => (),
+        b = t2 => return b,
     }
-    child.kill().expect("Command was not running");
-    return false;
 }
 
-async fn get_output_on_complete(child: &mut Child) -> bool {
+async fn get_output_on_complete(child: Child) -> bool {
     let status: ExitStatus = child.await.expect("Oh god what happened"); // blocking
     let out: bool = status.success();
     if !out {

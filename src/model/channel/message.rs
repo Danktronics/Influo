@@ -1,10 +1,11 @@
 #[derive(Debug)]
-pub struct ProcedureKillCommand {
-    pub url: String,
-    pub branch: String,
+pub enum Command {
+    KillProcedure,
+    RetrieveLogs,
 }
 
 #[derive(Debug)]
-pub struct ProcedureKillResponse {
-    pub close_code: u32,
+pub enum Response {
+    KilledProcedure(i32), // Close Code
+    Logs(Vec<String>), // Line separated logs
 }

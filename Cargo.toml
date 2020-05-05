@@ -12,4 +12,5 @@ failure = "0.1.7"
 regex = "1"
 lazy_static = "1.4.0"
 crossbeam-channel = "0.4"
-tokio = { version = "0.2", features = ["process"] }
+tokio = { version = "0.2", features = ["process", "rt-core"] }
+hyper = "0.13.5"

@@ -33,7 +33,7 @@ async fn run_system_command(command: &str, path: &str) -> Result<String, Error> 
             -1 // Child process terminated by signal (UNIX) (should probably retrieve signal)
         };
         error!(format!("System command failed ({}) with status: {}", command, human_exit_code));
-        bail!(outpout.status.code().unwrap())
+        // bail!(output.status.code().unwrap())
     }
 
     Ok(String::from_utf8(output.stdout)?)

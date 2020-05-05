@@ -95,17 +95,18 @@ async fn manage_child(child: Child, connection: &ThreadProcedureConnection) -> b
 /// Bool indicates whether it exited successfully
 /// i32 is status code
 async fn complete_child(child: Child) -> (bool, i32) {
-    let status: ExitStatus = child.await; // Blocking
+    let status_result: Result<ExitStatus> = child.await; // Blocking
     if status_result.is_err() {
         return (false, 1);
     }
+    let status = status_result.unwrap();
     let success: bool = status.success();
     let raw_code = status.code();
     let exit_code: i32 = if raw_code.is_some() {
         raw_code.unwrap()
     } else {
         1
-    }
+    };
     return (success, exit_code);
 }
 

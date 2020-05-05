@@ -1,7 +1,10 @@
 use std::thread;
 use failure::Error;
+use futures::{select, pin_mut, future::{Fuse, FusedFuture, FutureExt}};
+use futures::executor::block_on;
 use tokio::process::Child;
 use tokio::io::{BufReader, AsyncBufReadExt};
+use std::process::ExitStatus;
 
 use crate::model::project::Project;
 use crate::model::project::branch::Branch;
@@ -48,7 +51,7 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
                 });
 
                 // Blocks the thread until the child process running the command has exited
-                if !manage_child(&mut child_process, &procedure_connection) {
+                if !block_on(manage_child(&mut child_process, &procedure_connection)) {
                     info!(format!("Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_connection.remote_url, procedure_connection.branch, procedure_connection.procedure_name));
                     success = false;
                     break;
@@ -64,31 +67,44 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
     Ok(())
 }
 
-fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection) -> bool {
-    loop {
-        let possible_status = child.try_wait().unwrap();
-        if !possible_status.is_none() {
-            let status = possible_status.unwrap();
-            if status.success() {
-                return true;
+async fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection) -> bool {
+    let t1 = get_output_on_complete(child).fuse();
+    let t2 = terminate_on_command(connection).fuse();
+
+    pin_mut!(t1, t2);
+
+    select! {
+        b = t1 => return b,
+        b = t2 => (),
+    }
+    child.kill().expect("Command was not running");
+    return false;
+}
+
+async fn get_output_on_complete(child: &mut Child) -> bool {
+    let status: ExitStatus = child.await.expect("Oh god what happened"); // blocking
+    let out: bool = status.success();
+    if !out {
+        match status.code() {
+            Some(code) => {
+                info!(format!("Exited with status code {}", code));
             }
-            match status.code() {
-                Some(code) => {
-                    info!(format!("Exited with status code {}", code));
-                    return false;
-                }
-                None => {
-                    info!("Process terminated by signal");
-                    return false;
-                }
-            };
-        }
+            None => {
+                info!("Process terminated by signal");
+            }
+        };
+    }
+    return out;
+}
+
+async fn terminate_on_command(connection: &ThreadProcedureConnection) -> bool {
+    loop {
         if let Ok(msg) = connection.owner_channel.receiver.try_recv() {
             if std::mem::discriminant(&msg) == std::mem::discriminant(&Command::KillProcedure) {
                 info!("Terminating command");
-                child.kill().expect("Command was not running");
-                return false;
+                break;
             }
         }
     }
+    return false;
 }

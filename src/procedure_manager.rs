@@ -95,7 +95,7 @@ async fn manage_child(child: Child, connection: &ThreadProcedureConnection) -> b
 /// Bool indicates whether it exited successfully
 /// i32 is status code
 async fn complete_child(child: Child) -> (bool, i32) {
-    let status_result: Result<ExitStatus> = child.await; // Blocking
+    let status_result: Result<ExitStatus, Error> = child.await; // Blocking
     if status_result.is_err() {
         return (false, 1);
     }
@@ -115,7 +115,7 @@ async fn process_commands(connection: &ThreadProcedureConnection) {
     loop {
         if let Ok(msg) = connection.owner_channel.receiver.try_recv() {
             if std::mem::discriminant(&msg) == std::mem::discriminant(&Command::KillProcedure) {
-                info!("Terminating command");
+                info!(format!("[{}] [{}] {}: Terminating due to command", connection.remote_url, connection.branch, connection.procedure_name, exit_code));
                 break;
             }
         }

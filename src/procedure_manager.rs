@@ -64,7 +64,7 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
     Ok(())
 }
 
-fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection) -> bool { // this function has no return true?
+fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection) -> bool {
     child.and_then(||)
     loop {
         let possible_status = child.try_wait().unwrap();

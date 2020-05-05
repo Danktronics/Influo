@@ -95,7 +95,7 @@ async fn manage_child(child: Child, connection: &ThreadProcedureConnection) -> b
 /// Bool indicates whether it exited successfully
 /// i32 is status code
 async fn complete_child(child: Child) -> (bool, i32) {
-    let status_result: Result<ExitStatus, Error> = child.await; // Blocking
+    let status_result: Result<ExitStatus, std::io::Error> = child.await; // Blocking
     if status_result.is_err() {
         return (false, 1);
     }

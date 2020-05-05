@@ -5,6 +5,9 @@ use hyper::service::{make_service_fn, service_fn};
 use hyper::{header, Body, Client, Method, Request, Response, Server, StatusCode};
 use failure::Error;
 
+type GenericError = Box<dyn std::error::Error + Send + Sync>;
+type Result<T> = std::result::Result<T, GenericError>;
+
 async fn get_status() -> Result<Response<Body>, Error> {
     Ok(Response::builder().status(StatusCode::OK).body(Body::from("{}")).unwrap())
 }
@@ -14,7 +17,7 @@ async fn handle_request(request: Request<Body>, client: Client<HttpConnector>) -
         (&Method::GET, "/") => Ok(Response::builder().status(StatusCode::OK).body(Body::from("Welcome to Influo")).unwrap()),
         (&Method::GET, "/api") => get_status().await,
         _ => {
-            Ok(Response::builder().status(StatusCode::NOT_FOUND).body("404 Not Found").unwrap())
+            Ok(Response::builder().status(StatusCode::NOT_FOUND).body(Body::from("404 Not Found")).unwrap())
         }
     }
 }
@@ -26,7 +29,7 @@ pub async fn start_webserver(port: u16) -> Result<(), Error> {
     let service = make_service_fn(move |_| {
         let client = client.clone();
         async {
-            Ok::<_, Error>(service_fn(move |request| {
+            Ok::<_, GenericError>(service_fn(move |request| {
                 handle_request(request, client.to_owned());
             }))
         }

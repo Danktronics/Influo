@@ -79,7 +79,7 @@ fn main() -> Result<(), Error> {
 fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>, main_communication: ThreadConnection) -> thread::JoinHandle<()> {
     info!("Spawning updater thread");
 
-    let procedure_thread_connections: Vec<ThreadProcedureConnection> = Vec::new();
+    let mut procedure_thread_connections: Vec<ThreadProcedureConnection> = Vec::new();
 
     let updater_projects_ref = Arc::clone(&projects);
     thread::spawn(move || {
@@ -105,7 +105,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>, main_
                     }
 
                     info!(format!("Updating to commit {} in the {} branch...", short_hash, branch.name));
-                    let procedure_immediate_result = run_project_procedures(&project, &branch, procedure_thread_connections);
+                    let procedure_immediate_result = run_project_procedures(&project, &branch, &mut procedure_thread_connections);
 
                     if procedure_immediate_result.is_err() {
                         error!(format!("Error occurred while running procedure: {:?}", procedure_immediate_result));

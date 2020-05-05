@@ -36,14 +36,16 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, mut procedure_
                 let mut child_process: Child = result_child_process.unwrap();
 
                 // Print stdout from child process asynchronously
-                tokio::spawn(async {
-                    let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
-                    let mut stdout_reader = BufReader::new(stdout).lines();
+                let p = path.clone();   // thanks Rust
+                let c = command.clone();
+                let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
+                let mut stdout_reader = BufReader::new(stdout).lines();
+                tokio::spawn(async move {
                     loop {
                         let result = match stdout_reader.next_line().await {
                             Ok(result) => {
                                 if result.is_some() {
-                                    info!(format!("[{}] Command ({}): {}", path, command, result.unwrap()));
+                                    info!(format!("[{}] Command ({}): {}", p, c, result.unwrap()));
                                 }
                             },
                             Err(e) => break,

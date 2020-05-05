@@ -1,9 +1,11 @@
+use bytes::buf::BufExt;
+use futures_util::{stream, StreamExt};
 use hyper::client::HttpConnector;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{header, Body, Client, Method, Request, Response, Server, StatusCode};
 use failure::Error;
 
-async fn get_status() -> Result<Response<&Body>, Error> {
+async fn get_status() -> Result<Response<Body>, Error> {
     Ok(Response::builder().status(StatusCode::OK).body(Body::from("{}")).unwrap())
 }
 

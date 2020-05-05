@@ -4,12 +4,12 @@ use hyper::{header, Body, Client, Method, Request, Response, Server, StatusCode}
 use failure::Error;
 
 async fn get_status() -> Result<Response<&Body>, Error> {
-    Ok(Response::builder().status(StatusCode::OK).body(Body::from("{}"))).unwrap())
+    Ok(Response::builder().status(StatusCode::OK).body(Body::from("{}")).unwrap())
 }
 
 async fn handle_request(request: Request<Body>, client: Client<HttpConnector>) -> Result<Response<Body>, Error> {
     match (request.method(), request.uri().path()) {
-        (&Method::GET, "/") => Ok(Response::builder().status(StatusCode::OK).body(Body::from("Welcome to Influo"))).unwrap()),
+        (&Method::GET, "/") => Ok(Response::builder().status(StatusCode::OK).body(Body::from("Welcome to Influo")).unwrap()),
         (&Method::GET, "/api") => get_status().await,
         _ => {
             Ok(Response::builder().status(StatusCode::NOT_FOUND).body("404 Not Found").unwrap())

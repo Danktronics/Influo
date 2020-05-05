@@ -1,15 +1,15 @@
 use std::fs;
-use std::future::Future;
-use tokio::process::{Child, Stdio};
+use tokio::process::Child;
+use std::process::Stdio;
 use tokio::io::{BufReader, AsyncBufReadExt};
 use tokio::process::Command;
-use failure::{Error, err_msg};
+use failure::Error;
 use regex::Regex;
 
 use crate::model::project::branch::Branch;
 
 /// Synchronous function for running a system command in a child process
-fn run_system_command(command: &str, path: &str) -> Result<String, Error> {
+async fn run_system_command(command: &str, path: &str) -> Result<String, Error> {
     let raw_output = if cfg!(target_os = "windows") {
         Command::new("cmd")
                 .current_dir(path)

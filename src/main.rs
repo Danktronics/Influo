@@ -1,28 +1,25 @@
 // Dependencies
 use std::fs;
-use std::io::{BufReader, BufRead};
 use std::thread;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
-use std::process::{Child, ChildStdout};
 use failure::{Error, err_msg};
 use serde_json::Value;
-use crossbeam_channel::{unbounded, Receiver};
-use tokio::io::{BufReader, AsyncBufReadExt};
-use tokio::process::Command;
 
 // Project Modules
+#[macro_use]
+mod logger;
 mod model;
 mod system_cmd;
 mod procedure_manager;
-#[macro_use]
-mod logger;
+mod webserver;
 
 use model::project::Project;
 use model::project::branch::Branch;
 use model::channel::{ThreadConnection, ThreadProcedureConnection};
-use system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
+use system_cmd::get_remote_git_repository_commits;
 use procedure_manager::run_project_procedures;
+use webserver::start_webserver;
 use logger::{LOGGER, Logger};
 
 fn main() -> Result<(), Error> {
@@ -56,7 +53,7 @@ fn main() -> Result<(), Error> {
             panic!("The integer provided exceeded the u32 max");
         }
         interval.unwrap() as u32 * 1000
-    }
+    };
     let updater_communication: ThreadConnection = ThreadConnection::new();
     let thread_join_handle: thread::JoinHandle<()> = setup_updater_thread(update_interval, projects, updater_communication);
 
@@ -71,7 +68,7 @@ fn main() -> Result<(), Error> {
             panic!("Invalid webserver port");
         }
         port.unwrap() as u16
-    }
+    };
     start_webserver(port);
 
     Ok(())

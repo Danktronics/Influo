@@ -1,4 +1,4 @@
-use crossbeam_channel::unbounded;
+use crossbeam_channel::{unbounded, Receiver, Sender};
 
 pub mod message;
 
@@ -21,11 +21,11 @@ impl ThreadConnection {
         let (owner_sender, owner_receiver) = unbounded();
         let (child_sender, child_receiver) = unbounded();
         ThreadConnection {
-            owner_channel: Channel<Command> {
+            owner_channel: Channel::<Command> {
                 receiver: owner_receiver,
                 sender: owner_sender,
             },
-            child_channel: Channel<Response> {
+            child_channel: Channel::<Response> {
                 receiver: child_receiver,
                 sender: child_sender,
             }
@@ -50,11 +50,11 @@ impl ThreadProcedureConnection {
             remote_url: remote_url,
             branch: branch,
             procedure_name: procedure_name,
-            owner_channel: Channel<Command> {
+            owner_channel: Channel::<Command> {
                 receiver: owner_receiver,
                 sender: owner_sender,
             },
-            child_channel: Channel<Response> {
+            child_channel: Channel::<Response> {
                 receiver: child_receiver,
                 sender: child_sender,
             }

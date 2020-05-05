@@ -1,12 +1,15 @@
+use std::thread;
+use failure::Error;
+use tokio::process::Child;
 use tokio::io::{BufReader, AsyncBufReadExt};
 
-use model::project::Project;
-use model::project::branch::Branch;
-use model::channel::{ThreadConnection, ThreadProcedureConnection};
-use model::channel::message::{Command, Response};
-use system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
+use crate::model::project::Project;
+use crate::model::project::branch::Branch;
+use crate::model::channel::{ThreadConnection, ThreadProcedureConnection};
+use crate::model::channel::message::{Command, Response};
+use crate::system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
 
-fn run_project_procedures(project: &Project, branch: &Branch, procedure_thread_connections: Vec<ThreadProcedureConnection>) -> Result<(), Error> {
+pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thread_connections: Vec<ThreadProcedureConnection>) -> Result<(), Error> {
     for procedure in &project.procedures {
         let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
         if branch_in_procedure.is_none() {
@@ -33,7 +36,7 @@ fn run_project_procedures(project: &Project, branch: &Branch, procedure_thread_c
                 tokio::spawn(async {
                     let stdout = child_process.stdout.take();
                     let mut stdout_reader = BufReader::new(stdout).lines();
-                    while let Some(line) = stdout_reader.next_line().await? {
+                    while let Some(line) = stdout_reader.next_line().await {
                         info!(format!("[{}] Command ({}): {}", path, command, line));
                     }
                 });

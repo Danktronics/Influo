@@ -92,5 +92,4 @@ fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection) -> bo
             }
         }
     }
-    return false; //the compiler seems to not understand that this is unreachable and wanted it.
 }

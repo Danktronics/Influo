@@ -38,7 +38,7 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
                     let mut stdout_reader = BufReader::new(stdout).lines();
                     loop {
                         let result = stdout_reader.next_line().await;
-                        if (result.is_err()) {
+                        if result.is_err() {
                             break;
                         }
                         if result.unwrap().is_some() {

@@ -36,8 +36,14 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
                 tokio::spawn(async {
                     let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
                     let mut stdout_reader = BufReader::new(stdout).lines();
-                    while let Some(line) = stdout_reader.next_line().await {
-                        info!(format!("[{}] Command ({}): {}", path, command, line));
+                    loop {
+                        let result = stdout_reader.next_line().await;
+                        if (result.is_err()) {
+                            break;
+                        }
+                        if result.unwrap().is_some() {
+                            info!(format!("[{}] Command ({}): {}", path, command, result.unwrap().unwrap()));
+                        }
                     }
                 });
 

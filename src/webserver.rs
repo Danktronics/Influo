@@ -5,14 +5,11 @@ use hyper::service::{make_service_fn, service_fn};
 use hyper::{header, Body, Client, Method, Request, Response, Server, StatusCode};
 use failure::Error;
 
-type GenericError = Box<dyn std::error::Error + Send + Sync>;
-type Result<T> = std::result::Result<T, GenericError>;
-
-async fn get_status() -> Result<Response<Body>> {
+async fn get_status() -> Result<Response<Body>, Error> {
     Ok(Response::builder().status(StatusCode::OK).body(Body::from("{}")).unwrap())
 }
 
-async fn handle_request(request: Request<Body>, client: Client<HttpConnector>) -> Result<Response<Body>> {
+async fn handle_request(request: Request<Body>, client: Client<HttpConnector>) -> Result<Response<Body>, Error> {
     match (request.method(), request.uri().path()) {
         (&Method::GET, "/") => Ok(Response::builder().status(StatusCode::OK).body(Body::from("Welcome to Influo")).unwrap()),
         (&Method::GET, "/api") => get_status().await,
@@ -22,14 +19,14 @@ async fn handle_request(request: Request<Body>, client: Client<HttpConnector>) -
     }
 }
 
-pub async fn start_webserver(port: u16) -> Result<()> {
+pub async fn start_webserver(port: u16) -> Result<(), Error> {
     let client = Client::new();
     let address = format!("127.0.0.1:{}", port).parse().unwrap();
 
     let service = make_service_fn(move |_| {
         let client = client.clone();
         async {
-            Ok::<_, GenericError>(service_fn(move |request| {
+            Ok::<_, Error>(service_fn(move |request| {
                 handle_request(request, client.to_owned());
             }))
         }

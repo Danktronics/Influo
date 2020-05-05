@@ -19,7 +19,7 @@ use model::project::branch::Branch;
 use model::channel::{ThreadConnection, ThreadProcedureConnection};
 use system_cmd::get_remote_git_repository_commits;
 use procedure_manager::run_project_procedures;
-use webserver::start_webserver;
+//use webserver::start_webserver;
 use logger::{LOGGER, Logger};
 
 fn main() -> Result<(), Error> {
@@ -69,7 +69,7 @@ fn main() -> Result<(), Error> {
         }
         port.unwrap() as u16
     };
-    start_webserver(port);
+    //start_webserver(port);
 
     Ok(())
 }

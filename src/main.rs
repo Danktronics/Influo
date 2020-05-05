@@ -61,10 +61,11 @@ fn main() -> Result<(), Error> {
     };
     let updater_communication: ThreadConnection = ThreadConnection::new();
     let thread_join_handle: thread::JoinHandle<()> = setup_updater_thread(update_interval, projects, updater_communication);
+    thread_join_handle.join().unwrap();
 
 
     // Start webserver (For API)
-    let raw_port: &Value = &config["port"];
+    /*let raw_port: &Value = &config["port"];
     let port: u16 = if !raw_port.is_number() {
         9050
     } else {
@@ -74,7 +75,7 @@ fn main() -> Result<(), Error> {
         }
         port.unwrap() as u16
     };
-    //start_webserver(port);
+    start_webserver(port);*/
 
     Ok(())
 }

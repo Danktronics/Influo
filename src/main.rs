@@ -31,6 +31,7 @@ fn main() -> Result<(), Error> {
         error!("Configuration not found");
         return raw_config.err();
     }
+    let config: Value = raw_config.unwrap();
     if config["log_level"].is_string() {
         LOGGER.lock().unwrap().set_log_level(Logger::string_to_log_level(&config["log_level"].as_str().unwrap()));
     }

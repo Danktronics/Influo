@@ -26,7 +26,11 @@ fn main() -> Result<(), Error> {
     info!("Influo is running!");
 
     // Load Configuration
-    let config: Value = read_configuration()?;
+    let raw_config: Result<Value, Error> = read_configuration();
+    if raw_config.is_err() {
+        error!("Configuration not found");
+        return raw_config.err();
+    }
     if config["log_level"].is_string() {
         LOGGER.lock().unwrap().set_log_level(Logger::string_to_log_level(&config["log_level"].as_str().unwrap()));
     }

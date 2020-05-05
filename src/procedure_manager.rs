@@ -49,7 +49,7 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
 
                 // Blocks the thread until the child process running the command has exited
                 if !manage_child(&mut child_process, &procedure_connection) {
-                    info!(format!("Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_connection.remote_url, procedure_connection.branch, procedure.name));
+                    info!(format!("Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_connection.remote_url, procedure_connection.branch, procedure_connection.procedure_name));
                     success = false;
                     break;
                 }

@@ -76,12 +76,16 @@ pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch:
 
     let clone_attempt = run_system_command(&format!("git clone {} {}", remote_url, branch), project_deploy_path).await;
     if clone_attempt.is_err() {
-        debug!(format!("Git clone attempt failed for {} due to: {}", remote_url, clone_attempt));
-        let pull_attempt = run_system_command(&"git pull", &format!("{}/{}", project_deploy_path, branch)).await;
-        if pull_attempt.is_err() {
-            debug!(format!("Git pull attempt failed for {} due to: {}", remote_url, clone_attempt));
-            error!(format!("Failed to update/create git repository with URL: {} and branch: {} in deploy path: {}", remote_url, branch, project_deploy_path));
-            return Err(err_msg(format!("Failed to update/create git repository with URL: {} and branch: {} in deploy path: {}", remote_url, branch, project_deploy_path)));
+        if let Err(e0) = clone_attempt {
+            debug!(format!("Git clone attempt failed for {} due to: {}", remote_url, e0));
+            let pull_attempt = run_system_command(&"git pull", &format!("{}/{}", project_deploy_path, branch)).await;
+            if pull_attempt.is_err() {
+                if let Err(e1) = pull_attempt {
+                    debug!(format!("Git pull attempt failed for {} due to: {}", remote_url, e1));
+                    error!(format!("Failed to update/create git repository with URL: {} and branch: {} in deploy path: {}", remote_url, branch, project_deploy_path));
+                    return Err(err_msg(format!("Failed to update/create git repository with URL: {} and branch: {} in deploy path: {}", remote_url, branch, project_deploy_path)));
+                }
+            }
         }
     }
 

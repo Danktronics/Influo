@@ -78,14 +78,14 @@ async fn manage_child(child: Child, connection: &ThreadProcedureConnection) -> b
     pin_mut!(child_completion_future, command_exit);
 
     select! {
-        (success, exit_code) = child_completion_future => {
-            let command_log: String = format!("[{}] [{}] {} exited with code {}", connection.remote_url, connection.branch, connection.procedure_name, exit_code);
+        child_result = child_completion_future => {
+            let command_log: String = format!("[{}] [{}] {} exited with code {}", connection.remote_url, connection.branch, connection.procedure_name, child_result.1);
             if success {
                 info!(command_log);
             } else {
                 error!(command_log);
             }
-            return success;
+            return child_result.0;
         },
         () = command_exit => return false,
     }

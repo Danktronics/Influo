@@ -12,7 +12,7 @@ use crate::model::channel::{ThreadConnection, ThreadProcedureConnection};
 use crate::model::channel::message::{Command, Response};
 use crate::system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
 
-pub fn run_project_procedures(project: &Project, branch: &Branch, mut procedure_thread_connections: Vec<ThreadProcedureConnection>) -> Result<(), Error> {
+pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thread_connections: &mut Vec<ThreadProcedureConnection>) -> Result<(), Error> {
     for procedure in &project.procedures {
         let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
         if branch_in_procedure.is_none() {

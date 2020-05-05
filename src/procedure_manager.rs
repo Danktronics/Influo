@@ -15,7 +15,7 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
         if branch_in_procedure.is_none() {
             continue;
         }
-        let repository_name: String = setup_git_repository(&project.url, &procedure.deploy_path)?;
+        let repository_name: String = setup_git_repository(&project.url, &procedure.deploy_path, &branch.name)?;
         let path = format!("{}/{}", procedure.deploy_path, repository_name);
         let commands: Vec<String> = procedure.commands.clone();
 
@@ -34,7 +34,7 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
 
                 // Print stdout from child process asynchronously
                 tokio::spawn(async {
-                    let stdout = child_process.stdout.take();
+                    let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
                     let mut stdout_reader = BufReader::new(stdout).lines();
                     while let Some(line) = stdout_reader.next_line().await {
                         info!(format!("[{}] Command ({}): {}", path, command, line));

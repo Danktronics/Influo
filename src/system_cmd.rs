@@ -14,22 +14,26 @@ async fn run_system_command(command: &str, path: &str) -> Result<String, Error> 
         Command::new("cmd")
                 .current_dir(path)
                 .arg("/C")
-                .args(command)
+                .args(&vec![command])
                 .output()
                 .await
     } else { // Assume Linux, BSD, and OSX
         Command::new("sh")
                 .current_dir(path)
                 .arg("-c") // Non-login and non-interactive
-                .args(command)
+                .args(&vec![command])
                 .output()
                 .await
     };
     let output = raw_output?;
     if !output.status.success() {
-        let human_exit_code = if output.status.is_some() { output.status.unwrap() } else { "Child process terminated by signal (UNIX)" };
+        let human_exit_code = if output.status.code().is_some() {
+            output.status.code().unwrap()
+        } else {
+            "Child process terminated by signal (UNIX)"
+        };
         error!(format!("System command failed ({}) with status: {}", command, human_exit_code));
-        return Err(output);
+        bail!(outpout.status.code().unwrap())
     }
 
     Ok(String::from_utf8(output.stdout)?)
@@ -72,10 +76,10 @@ pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch:
 
     let clone_attempt = run_system_command(&format!("git clone {} {}", remote_url, branch), project_deploy_path);
     if clone_attempt.is_err() {
-        debug!(format!("Git clone attempt failed for {} due to: {}", clone_attempt));
+        debug!(format!("Git clone attempt failed for {} due to: {}", remote_url, clone_attempt));
         let pull_attempt = run_system_command(&"git pull", &format!("{}/{}", project_deploy_path, branch));
         if pull_attempt.is_err() {
-            debug!(format!("Git pull attempt failed for {} due to: {}", clone_attempt));
+            debug!(format!("Git pull attempt failed for {} due to: {}", remote_url, clone_attempt));
             error!(format!("Failed to update/create git repository with URL: {} and branch: {} in deploy path: {}", remote_url, branch, project_deploy_path));
             return pull_attempt;
         }
@@ -91,7 +95,7 @@ pub fn run_procedure_command(command: &str, repository_path: &str) -> Result<Chi
         Ok(Command::new("cmd")
                 .current_dir(repository_path)
                 .arg("/C")
-                .args(command)
+                .args(&vec![command])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()?)
@@ -99,7 +103,7 @@ pub fn run_procedure_command(command: &str, repository_path: &str) -> Result<Chi
         Ok(Command::new("sh")
                 .current_dir(repository_path)
                 .arg("-c") // Non-login and non-interactive
-                .args(command)
+                .args(&vec![command])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()?)

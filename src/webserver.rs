@@ -8,11 +8,11 @@ use failure::Error;
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type Result<T> = std::result::Result<T, GenericError>;
 
-async fn get_status() -> Result<Response<Body>, Error> {
+async fn get_status() -> Result<Response<Body>> {
     Ok(Response::builder().status(StatusCode::OK).body(Body::from("{}")).unwrap())
 }
 
-async fn handle_request(request: Request<Body>, client: Client<HttpConnector>) -> Result<Response<Body>, Error> {
+async fn handle_request(request: Request<Body>, client: Client<HttpConnector>) -> Result<Response<Body>> {
     match (request.method(), request.uri().path()) {
         (&Method::GET, "/") => Ok(Response::builder().status(StatusCode::OK).body(Body::from("Welcome to Influo")).unwrap()),
         (&Method::GET, "/api") => get_status().await,
@@ -22,7 +22,7 @@ async fn handle_request(request: Request<Body>, client: Client<HttpConnector>) -
     }
 }
 
-pub async fn start_webserver(port: u16) -> Result<(), Error> {
+pub async fn start_webserver(port: u16) -> Result<()> {
     let client = Client::new();
     let address = format!("127.0.0.1:{}", port).parse().unwrap();
 

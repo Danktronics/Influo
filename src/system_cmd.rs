@@ -5,6 +5,7 @@ use tokio::io::{BufReader, AsyncBufReadExt};
 use tokio::process::Command;
 use failure::{Error, err_msg, bail};
 use regex::Regex;
+use futures::executor::block_on;
 
 use crate::model::project::branch::Branch;
 
@@ -41,7 +42,7 @@ async fn run_system_command(command: &str, path: &str) -> Result<String, Error> 
 
 /// Retrieves the remote git branches synchronously using git ls-remote
 pub fn get_remote_git_repository_commits(remote_url: &str) -> Result<Vec<Branch>, Error> {
-    let result: String = run_system_command(&format!("git ls-remote --heads {}", remote_url), "./").await?;
+    let result: String = block_on(run_system_command(&format!("git ls-remote --heads {}", remote_url), "./"))?;
     let regex_pattern = Regex::new(r"([0-9a-fA-F]+)\s+refs/heads/(\S+)").unwrap();
     let mut branches: Vec<Branch> = Vec::new();
     for capture in regex_pattern.captures_iter(&result) {
@@ -74,11 +75,11 @@ pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch:
     let repository_name: &str = possible_repository_name.unwrap().as_str();
 
 
-    let clone_attempt = run_system_command(&format!("git clone {} {}", remote_url, branch), project_deploy_path).await;
+    let clone_attempt = block_on(run_system_command(&format!("git clone {} {}", remote_url, branch), project_deploy_path));
     if clone_attempt.is_err() {
         if let Err(e0) = clone_attempt {
             debug!(format!("Git clone attempt failed for {} due to: {}", remote_url, e0));
-            let pull_attempt = run_system_command(&"git pull", &format!("{}/{}", project_deploy_path, branch)).await;
+            let pull_attempt = block_on(run_system_command(&"git pull", &format!("{}/{}", project_deploy_path, branch)));
             if pull_attempt.is_err() {
                 if let Err(e1) = pull_attempt {
                     debug!(format!("Git pull attempt failed for {} due to: {}", remote_url, e1));

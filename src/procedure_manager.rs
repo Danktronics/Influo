@@ -78,14 +78,14 @@ async fn manage_child(child: Child, connection: &ThreadProcedureConnection) -> b
     pin_mut!(child_completion_future, command_exit);
 
     select! {
-        child_result = child_completion_future => {
-            let command_log: String = format!("[{}] [{}] {} exited with code {}", connection.remote_url, connection.branch, connection.procedure_name, child_result.1);
+        (success, exit_code) = child_completion_future => {
+            let command_log: String = format!("[{}] [{}] {} exited with code {}", connection.remote_url, connection.branch, connection.procedure_name, exit_code);
             if success {
                 info!(command_log);
             } else {
                 error!(command_log);
             }
-            return child_result.0;
+            return success;
         },
         () = command_exit => return false,
     }
@@ -115,7 +115,7 @@ async fn process_commands(connection: &ThreadProcedureConnection) {
     loop {
         if let Ok(msg) = connection.owner_channel.receiver.try_recv() {
             if std::mem::discriminant(&msg) == std::mem::discriminant(&Command::KillProcedure) {
-                info!(format!("[{}] [{}] {}: Terminating due to command", connection.remote_url, connection.branch, connection.procedure_name, exit_code));
+                info!(format!("[{}] [{}] {}: Terminating due to command", connection.remote_url, connection.branch, connection.procedure_name));
                 break;
             }
         }

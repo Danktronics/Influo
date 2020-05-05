@@ -65,7 +65,6 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
 }
 
 fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection) -> bool {
-    child.and_then(||)
     loop {
         let possible_status = child.try_wait().unwrap();
         if !possible_status.is_none() {
@@ -84,7 +83,7 @@ fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection) -> bo
                 }
             };
         }
-        if let Ok(msg) = connection.child_channel.receiver.try_recv() {
+        if let Ok(msg) = connection.owner_channel.receiver.try_recv() {
             if std::mem::discriminant(&msg) == std::mem::discriminant(&Command::KillProcedure) {
                 info!("Terminating command");
                 child.kill().expect("Command was not running");

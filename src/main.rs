@@ -97,7 +97,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>, main_
 
                 let branches = query_result.unwrap();
                 for branch in &branches {
-                    let short_hash = branch.latest_commit_hash.chars().take(5);
+                    let short_hash = branch.latest_commit_hash.chars().take(5).collect();
                     debug!(format!("Current branch is {}. Current short commit hash is {}", branch.name, short_hash));
                     let branch_search = project.branches.iter().find(|&b| b.name == branch.name);
                     if branch_search.is_some() && branch_search.unwrap().latest_commit_hash == branch.latest_commit_hash {

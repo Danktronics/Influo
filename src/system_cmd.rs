@@ -3,7 +3,7 @@ use tokio::process::Child;
 use std::process::Stdio;
 use tokio::io::{BufReader, AsyncBufReadExt};
 use tokio::process::Command;
-use failure::{Error, bail};
+use failure::{Error, err_msg, bail};
 use regex::Regex;
 
 use crate::model::project::branch::Branch;
@@ -41,7 +41,7 @@ async fn run_system_command(command: &str, path: &str) -> Result<String, Error> 
 
 /// Retrieves the remote git branches synchronously using git ls-remote
 pub fn get_remote_git_repository_commits(remote_url: &str) -> Result<Vec<Branch>, Error> {
-    let result = run_system_command(&format!("git ls-remote --heads {}", remote_url), "./")?;
+    let result: String = run_system_command(&format!("git ls-remote --heads {}", remote_url), "./").await?;
     let regex_pattern = Regex::new(r"([0-9a-fA-F]+)\s+refs/heads/(\S+)").unwrap();
     let mut branches: Vec<Branch> = Vec::new();
     for capture in regex_pattern.captures_iter(&result) {
@@ -63,25 +63,25 @@ pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch:
     let possible_captures = regex_pattern.captures(remote_url);
     if possible_captures.is_none() {
         error!(format!("Remote url ({}) did not pass regex", remote_url));
-        return Err(format!("Remote url ({}) did not pass regex", remote_url));
+        return Err(err_msg(format!("Remote url ({}) did not pass regex", remote_url)));
     }
     let captures = possible_captures.unwrap();
     let possible_repository_name = captures.get(captures.len() - 1);
     if possible_repository_name.is_none() {
         error!(format!("Remote url ({}) does not contain a valid name", remote_url));
-        return Err(format!("Remote url ({}) does not contain a valid name", remote_url));
+        return Err(err_msg(format!("Remote url ({}) does not contain a valid name", remote_url)));
     }
     let repository_name: &str = possible_repository_name.unwrap().as_str();
 
 
-    let clone_attempt = run_system_command(&format!("git clone {} {}", remote_url, branch), project_deploy_path);
+    let clone_attempt = run_system_command(&format!("git clone {} {}", remote_url, branch), project_deploy_path).await;
     if clone_attempt.is_err() {
         debug!(format!("Git clone attempt failed for {} due to: {}", remote_url, clone_attempt));
-        let pull_attempt = run_system_command(&"git pull", &format!("{}/{}", project_deploy_path, branch));
+        let pull_attempt = run_system_command(&"git pull", &format!("{}/{}", project_deploy_path, branch)).await;
         if pull_attempt.is_err() {
             debug!(format!("Git pull attempt failed for {} due to: {}", remote_url, clone_attempt));
             error!(format!("Failed to update/create git repository with URL: {} and branch: {} in deploy path: {}", remote_url, branch, project_deploy_path));
-            return pull_attempt;
+            return Err(err_msg(format!("Failed to update/create git repository with URL: {} and branch: {} in deploy path: {}", remote_url, branch, project_deploy_path)));
         }
     }
 

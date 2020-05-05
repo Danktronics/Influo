@@ -70,35 +70,47 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
     Ok(())
 }
 
+/// Manages a child and returns a future with a bool (true if command ran successfully)
 async fn manage_child(child: Child, connection: &ThreadProcedureConnection) -> bool {
-    let t1 = get_output_on_complete(child).fuse();
-    let t2 = terminate_on_command(connection).fuse();
+    let child_completion_future = complete_child(child).fuse();
+    let command_exit = process_commands(connection).fuse();
 
-    pin_mut!(t1, t2);
+    pin_mut!(child_completion_future, command_exit);
 
     select! {
-        b = t1 => return b,
-        b = t2 => return b,
+        (success, exit_code) = child_completion_future => {
+            let command_log: &str = format!("[{}] [{}] {} exited with code {}", connection.remote_url, connection.branch, connection.procedure_name, exit_code);
+            if success {
+                info!(command_log);
+            } else {
+                error!(command_log);
+            }
+            return success;
+        },
+        () = command_exit => return false,
     }
 }
 
-async fn get_output_on_complete(child: Child) -> bool {
-    let status: ExitStatus = child.await.expect("Oh god what happened"); // blocking
-    let out: bool = status.success();
-    if !out {
-        match status.code() {
-            Some(code) => {
-                info!(format!("Exited with status code {}", code));
-            }
-            None => {
-                info!("Process terminated by signal");
-            }
-        };
+/// Returns a future completed when the child exits
+/// Bool indicates whether it exited successfully
+/// i32 is status code
+async fn complete_child(child: Child) -> (bool, i32) {
+    let status: ExitStatus = child.await; // Blocking
+    if status_result.is_err() {
+        return (false, 1);
     }
-    return out;
+    let success: bool = status.success();
+    let raw_code = status.code();
+    let exit_code: i32 = if raw_code.is_some() {
+        raw_code.unwrap()
+    } else {
+        1
+    }
+    return (success, exit_code);
 }
 
-async fn terminate_on_command(connection: &ThreadProcedureConnection) -> bool {
+/// 
+async fn process_commands(connection: &ThreadProcedureConnection) {
     loop {
         if let Ok(msg) = connection.owner_channel.receiver.try_recv() {
             if std::mem::discriminant(&msg) == std::mem::discriminant(&Command::KillProcedure) {
@@ -107,5 +119,4 @@ async fn terminate_on_command(connection: &ThreadProcedureConnection) -> bool {
             }
         }
     }
-    return false;
 }

@@ -42,13 +42,13 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, mut procedure_
                 let mut stdout_reader = BufReader::new(stdout).lines();
                 tokio::spawn(async move {
                     loop {
-                        let result = match stdout_reader.next_line().await {
+                        match stdout_reader.next_line().await {
                             Ok(result) => {
                                 if result.is_some() {
                                     info!(format!("[{}] Command ({}): {}", p, c, result.unwrap()));
                                 }
                             },
-                            Err(e) => break,
+                            Err(_e) => break,
                         };
                     }
                 });

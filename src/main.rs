@@ -29,7 +29,7 @@ fn main() -> Result<(), Error> {
     let raw_config: Result<Value, Error> = read_configuration();
     if raw_config.is_err() {
         error!("Configuration not found");
-        return raw_config.err().unwrap();
+        return Err(raw_config.err().unwrap());
     }
     let config: Value = raw_config.unwrap();
     if config["log_level"].is_string() {

@@ -2,6 +2,7 @@ use std::thread;
 use failure::Error;
 use futures::{select, pin_mut, future::{Fuse, FusedFuture, FutureExt}};
 use futures::executor::block_on;
+use tokio::runtime::Builder;
 use tokio::process::Child;
 use tokio::io::{BufReader, AsyncBufReadExt};
 use std::process::ExitStatus;
@@ -29,7 +30,8 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
             let mut success = true;
             for command in commands {
                 info!(format!("[{}] Running command: {}", path, command));
-                let result_child_process = run_procedure_command(&command, &path);
+                let mut runtime = Builder::new().basic_scheduler().enable_all().build().unwrap();
+                let result_child_process = runtime.handle().clone().enter(|| run_procedure_command(&command, &path));
                 if result_child_process.is_err() {
                     break;
                 }
@@ -40,10 +42,11 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
                 let c = command.clone();
                 let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
                 let mut stdout_reader = BufReader::new(stdout).lines();
-                tokio::spawn(async move {
+                runtime.spawn(async move {
                     loop {
                         match stdout_reader.next_line().await {
                             Ok(result) => {
+                                println!("uhh");
                                 if result.is_some() {
                                     info!(format!("[{}] Command ({}): {}", p, c, result.unwrap()));
                                 }
@@ -54,7 +57,7 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
                 });
 
                 // Blocks the thread until the child process running the command has exited
-                if !block_on(manage_child(child_process, &procedure_connection)) {
+                if !runtime.block_on(manage_child(child_process, &procedure_connection)) {
                     info!(format!("Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_connection.remote_url, procedure_connection.branch, procedure_connection.procedure_name));
                     success = false;
                     break;
@@ -79,6 +82,7 @@ async fn manage_child(child: Child, connection: &ThreadProcedureConnection) -> b
 
     select! {
         (success, exit_code) = child_completion_future => {
+            println!("d");
             let command_log: String = format!("[{}] [{}] {} exited with code {}", connection.remote_url, connection.branch, connection.procedure_name, exit_code);
             if success {
                 info!(command_log);
@@ -96,6 +100,7 @@ async fn manage_child(child: Child, connection: &ThreadProcedureConnection) -> b
 /// i32 is status code
 async fn complete_child(child: Child) -> (bool, i32) {
     let status_result: Result<ExitStatus, std::io::Error> = child.await; // Blocking
+    println!("why");
     if status_result.is_err() {
         return (false, 1);
     }

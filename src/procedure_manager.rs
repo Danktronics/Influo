@@ -30,7 +30,7 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
             let mut success = true;
             for command in commands {
                 info!(format!("[{}] Running command: {}", path, command));
-                let mut runtime = Builder::new().enable_all().build().unwrap();
+                let mut runtime = Builder::new().threaded_scheduler().enable_all().build().unwrap();
                 let result_child_process = runtime.handle().enter(|| run_procedure_command(&command, &path));
                 if result_child_process.is_err() {
                     break;

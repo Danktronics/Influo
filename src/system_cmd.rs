@@ -54,9 +54,6 @@ pub fn get_remote_git_repository_commits(remote_url: &str) -> Result<Vec<Branch>
 }
 
 pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch: &str) -> Result<String, Error> {
-    // Make sure the deploy path is valid
-    fs::create_dir_all(project_deploy_path)?;
-
     // Download or update repository
     let regex_pattern = Regex::new(r"^(https|git)(://|@)([^/:]+)[/:]([^/:]+)/([^.]*)[.git]*?$").unwrap();
     let possible_captures = regex_pattern.captures(remote_url);
@@ -71,17 +68,21 @@ pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch:
         return Err(err_msg(format!("Remote url ({}) does not contain a valid name", remote_url)));
     }
     let repository_name: &str = possible_repository_name.unwrap().as_str();
+    let project_path: String = format!("{}/{}", project_deploy_path, repository_name);
 
-    let clone_attempt = run_system_command(&format!("git clone {} {}", remote_url, branch), project_deploy_path);
+    // Make sure the deploy path is valid
+    fs::create_dir_all(&project_path)?;
+
+    let clone_attempt = run_system_command(&format!("git clone {} {}", remote_url, branch), project_path);
     if clone_attempt.is_err() {
         if let Err(e0) = clone_attempt {
             debug!(format!("Git clone attempt failed for {} due to: {}", remote_url, e0));
-            let pull_attempt = run_system_command(&"git pull", &format!("{}/{}", project_deploy_path, branch));
+            let pull_attempt = run_system_command(&"git pull", &format!("{}/{}", project_path, branch));
             if pull_attempt.is_err() {
                 if let Err(e1) = pull_attempt {
                     debug!(format!("Git pull attempt failed for {} due to: {}", remote_url, e1));
-                    error!(format!("Failed to update/create git repository with URL: {} and branch: {} in deploy path: {}", remote_url, branch, project_deploy_path));
-                    return Err(err_msg(format!("Failed to update/create git repository with URL: {} and branch: {} in deploy path: {}", remote_url, branch, project_deploy_path)));
+                    error!(format!("Failed to update/create git repository with URL: {} and branch: {} in path: {}", remote_url, branch, project_path));
+                    return Err(err_msg(format!("Failed to update/create git repository with URL: {} and branch: {} in path: {}", remote_url, branch, project_path)));
                 }
             }
         }

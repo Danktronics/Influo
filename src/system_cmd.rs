@@ -11,14 +11,12 @@ use crate::model::project::branch::Branch;
 fn run_system_command(command: &str, path: &str) -> Result<String, Error> {
     let raw_output = if cfg!(target_os = "windows") {
         std::process::Command::new("cmd")
-                .kill_on_drop(true)
                 .current_dir(path)
                 .arg("/C")
                 .args(&vec![command])
                 .output()
     } else { // Assume Linux, BSD, and OSX
         std::process::Command::new("sh")
-                .kill_on_drop(true)
                 .current_dir(path)
                 .arg("-c") // Non-login and non-interactive
                 .args(&vec![command])
@@ -73,7 +71,7 @@ pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch:
     // Make sure the deploy path is valid
     fs::create_dir_all(&project_path)?;
 
-    let clone_attempt = run_system_command(&format!("git clone {} {}", remote_url, branch), project_path);
+    let clone_attempt = run_system_command(&format!("git clone {} {}", remote_url, branch), &project_path);
     if clone_attempt.is_err() {
         if let Err(e0) = clone_attempt {
             debug!(format!("Git clone attempt failed for {} due to: {}", remote_url, e0));
@@ -95,7 +93,7 @@ pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch:
 /// Procedure commands are not guaranteed to end
 pub fn run_procedure_command(command: &str, repository_path: &str) -> Result<tokio::process::Child, Error> {
     if cfg!(target_os = "windows") {
-        Ok(tokio:::process::Command::new("cmd")
+        Ok(tokio::process::Command::new("cmd")
                 .current_dir(repository_path)
                 .arg("/C")
                 .args(&vec![command])

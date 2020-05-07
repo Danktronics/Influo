@@ -1,9 +1,6 @@
 use std::fs;
-use tokio::process::Child;
 use std::process::Stdio;
-use tokio::runtime::Builder;
-use tokio::io::{BufReader, AsyncBufReadExt};
-use tokio::process::Command;
+//use tokio::io::{BufReader, AsyncBufReadExt};
 use failure::{Error, err_msg, bail};
 use regex::Regex;
 use futures::executor::block_on;
@@ -11,33 +8,31 @@ use futures::executor::block_on;
 use crate::model::project::branch::Branch;
 
 /// Synchronous function for running a system command in a child process
-async fn run_system_command(command: &str, path: &str) -> Result<String, Error> {
+fn run_system_command(command: &str, path: &str) -> Result<String, Error> {
     let raw_output = if cfg!(target_os = "windows") {
-        Command::new("cmd")
+        std::process::Command::new("cmd")
                 .kill_on_drop(true)
                 .current_dir(path)
                 .arg("/C")
                 .args(&vec![command])
                 .output()
-                .await
     } else { // Assume Linux, BSD, and OSX
-        Command::new("sh")
+        std::process::Command::new("sh")
                 .kill_on_drop(true)
                 .current_dir(path)
                 .arg("-c") // Non-login and non-interactive
                 .args(&vec![command])
                 .output()
-                .await
     };
     let output = raw_output?;
     if !output.status.success() {
         let human_exit_code = if output.status.code().is_some() {
             output.status.code().unwrap()
         } else {
-            -1 // Child process terminated by signal (UNIX) (should probably retrieve signal)
+            1 // Child process terminated by signal (UNIX) (should probably retrieve signal)
         };
         error!(format!("System command failed ({}) with status: {}", command, human_exit_code));
-        bail!(output.status.code().unwrap())
+        return Err(raw_output.err.unwrap());
     }
 
     Ok(String::from_utf8(output.stdout)?)
@@ -45,7 +40,7 @@ async fn run_system_command(command: &str, path: &str) -> Result<String, Error> 
 
 /// Retrieves the remote git branches synchronously using git ls-remote
 pub fn get_remote_git_repository_commits(remote_url: &str) -> Result<Vec<Branch>, Error> {
-    let result: String = Builder::new().basic_scheduler().enable_all().build().unwrap().block_on(run_system_command(&format!("git ls-remote --heads {}", remote_url), "./"))?;
+    let result: String = run_system_command(&format!("git ls-remote --heads {}", remote_url), "./")?;
     let regex_pattern = Regex::new(r"([0-9a-fA-F]+)\s+refs/heads/(\S+)").unwrap();
     let mut branches: Vec<Branch> = Vec::new();
     for capture in regex_pattern.captures_iter(&result) {
@@ -77,12 +72,11 @@ pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch:
     }
     let repository_name: &str = possible_repository_name.unwrap().as_str();
 
-
-    let clone_attempt = Builder::new().basic_scheduler().enable_all().build().unwrap().block_on(run_system_command(&format!("git clone {} {}", remote_url, branch), project_deploy_path));
+    let clone_attempt = run_system_command(&format!("git clone {} {}", remote_url, branch), project_deploy_path);
     if clone_attempt.is_err() {
         if let Err(e0) = clone_attempt {
             debug!(format!("Git clone attempt failed for {} due to: {}", remote_url, e0));
-            let pull_attempt = Builder::new().basic_scheduler().enable_all().build().unwrap().block_on(run_system_command(&"git pull", &format!("{}/{}", project_deploy_path, branch)));
+            let pull_attempt = run_system_command(&"git pull", &format!("{}/{}", project_deploy_path, branch));
             if pull_attempt.is_err() {
                 if let Err(e1) = pull_attempt {
                     debug!(format!("Git pull attempt failed for {} due to: {}", remote_url, e1));
@@ -98,9 +92,9 @@ pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch:
 
 /// Special system command runner for long running children
 /// Procedure commands are not guaranteed to end
-pub fn run_procedure_command(command: &str, repository_path: &str) -> Result<Child, Error> {
+pub fn run_procedure_command(command: &str, repository_path: &str) -> Result<tokio::process::Child, Error> {
     if cfg!(target_os = "windows") {
-        Ok(Command::new("cmd")
+        Ok(tokio:::process::Command::new("cmd")
                 .current_dir(repository_path)
                 .arg("/C")
                 .args(&vec![command])
@@ -108,7 +102,7 @@ pub fn run_procedure_command(command: &str, repository_path: &str) -> Result<Chi
                 .stderr(Stdio::piped())
                 .spawn()?)
     } else { // Assume Linux, BSD, and OSX
-        Ok(Command::new("sh")
+        Ok(tokio::process::Command::new("sh")
                 .current_dir(repository_path)
                 .arg("-c") // Non-login and non-interactive
                 .args(&vec![command])

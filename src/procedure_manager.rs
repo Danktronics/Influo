@@ -115,7 +115,7 @@ async fn complete_child(child: Child) -> (bool, i32) {
     return (success, exit_code);
 }
 
-/// 
+/// yes
 async fn process_commands(connection: &ThreadProcedureConnection) {
     loop {
         if let Ok(msg) = connection.owner_channel.receiver.try_recv() {

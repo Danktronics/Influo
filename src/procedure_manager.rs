@@ -46,7 +46,6 @@ pub fn run_project_procedures(project: &Project, branch: &Branch, procedure_thre
                     loop {
                         match stdout_reader.next_line().await {
                             Ok(result) => {
-                                println!("uhh");
                                 if result.is_some() {
                                     info!(format!("[{}] Command ({}): {}", p, c, result.unwrap()));
                                 }
@@ -100,7 +99,6 @@ async fn manage_child(child: Child, connection: &ThreadProcedureConnection) -> b
 /// i32 is status code
 async fn complete_child(child: Child) -> (bool, i32) {
     let status_result: Result<ExitStatus, std::io::Error> = child.await; // Blocking
-    println!("why");
     if status_result.is_err() {
         return (false, 1);
     }

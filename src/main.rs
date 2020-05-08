@@ -16,9 +16,11 @@ mod procedure_manager;
 
 use model::project::Project;
 use model::project::branch::Branch;
+use model::project::procedure::Procedure;
+use model::channel::message::{Command, Response};
 use model::channel::{ThreadConnection, ThreadProcedureConnection};
 use system_cmd::get_remote_git_repository_commits;
-use procedure_manager::run_project_procedures;
+use procedure_manager::run_project_procedure;
 //use webserver::start_webserver;
 use logger::{LOGGER, Logger};
 
@@ -111,13 +113,33 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>, main_
                     }
 
                     info!(format!("Updating to commit {} in the {} branch...", short_hash, branch.name));
-                    let procedure_immediate_result = run_project_procedures(&project, &branch, &mut procedure_thread_connections);
+                    for procedure in &project.procedures {
+                        let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
+                        if branch_in_procedure.is_none() {
+                            continue;
+                        }
 
-                    if procedure_immediate_result.is_err() {
+                        // Kill previous procedure process
+                        for procedure_thread_connection in &mut procedure_thread_connections {
+                            if procedure_thread_connection.remote_url == project.url && procedure_thread_connection.branch == branch.name && procedure_thread_connection.procedure_name == procedure.name {
+                                procedure_thread_connection.owner_channel.sender.send(Command::KillProcedure);
+                                // TODO: Wait for response/timeout
+                            }
+                        }
+
+                        // Insert new connection
+                        procedure_thread_connections.push(ThreadProcedureConnection::new(project.url.clone(), branch.name.clone(), procedure.name.clone()));
+                        let mut procedure_connection = procedure_thread_connections.last_mut().unwrap();
+
+                        // Run procedure
+                        let procedure_immediate_result = run_project_procedure(&project, &branch, &procedure, &mut procedure_connection);
+                    }
+
+                    /*if procedure_immediate_result.is_err() {
                         error!(format!("Error occurred while running procedure: {:?}", procedure_immediate_result));
                     } else {
                         info!("Update most likely succeeded"); // Horribly incorrect
-                    }
+                    }*/
                 }
 
                 project.update_branches(branches);

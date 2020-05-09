@@ -1,35 +1,44 @@
-// external+builtin dependencies
+// Dependencies
 use std::fs;
-use std::io::{BufReader, BufRead};
 use std::thread;
 use std::time::Duration;
-use std::sync::{Arc, Mutex};
-use std::process::{Child, ChildStdout};
+use std::sync::{Arc, Mutex, RwLock};
 use failure::{Error, err_msg};
 use serde_json::Value;
-use crossbeam_channel::{unbounded, Receiver};
 
-// project dependencies
-mod model;
-mod system_cmd;
+// Project Modules
 #[macro_use]
 mod logger;
+mod model;
+mod system_cmd;
+mod procedure_manager;
+//mod webserver;
 
 use model::project::Project;
-// use model::project::messages::Messages; // maybe future
 use model::project::branch::Branch;
-use system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
+use model::project::procedure::Procedure;
+use model::channel::message::{Command, Response};
+use model::channel::{ThreadConnection, ThreadProcedureConnection};
+use system_cmd::get_remote_git_repository_commits;
+use procedure_manager::run_project_procedure;
+//use webserver::start_webserver;
 use logger::{LOGGER, Logger};
 
 fn main() -> Result<(), Error> {
-    println!("Influo is running!");
+    info!("Influo is running!");
 
     // Load Configuration
-    let config: Value = read_configuration()?;
+    let raw_config: Result<Value, Error> = read_configuration();
+    if raw_config.is_err() {
+        error!("Configuration not found");
+        return Err(raw_config.err().unwrap());
+    }
+    let config: Value = raw_config.unwrap();
     if config["log_level"].is_string() {
         LOGGER.lock().unwrap().set_log_level(Logger::string_to_log_level(&config["log_level"].as_str().unwrap()));
     }
 
+    // Process and cache projects
     let raw_projects: &Value = &config["projects"];
     if !raw_projects.is_array() {
         return Err(err_msg("Projects is invalid"));
@@ -38,37 +47,56 @@ fn main() -> Result<(), Error> {
     let projects: Arc<Mutex<Vec<Project>>> = Arc::new(Mutex::new(Vec::new()));
     for raw_project in raw_projects_array {
         let mut temp_projects = projects.lock().unwrap();
-        temp_projects.push(Project::new(&raw_project["url"], &raw_project["procedures"], &config["default_deploy_path"])?);
+        temp_projects.push(Project::new(&raw_project, &config["default_deploy_path"])?);
     }
 
-    let update_interval: &Value = &config["update_interval"];
-    if update_interval.is_null() || !update_interval.is_number() {
-        setup_updater_thread(30, projects);
+    // Retrieve update interval and start the updater thread
+    let raw_update_interval: &Value = &config["update_interval"];
+    let update_interval: u32 = if raw_update_interval.is_null() || !raw_update_interval.is_number() {
+        30
     } else {
-        let interval: Option<u64> = update_interval.as_u64();
+        let interval: Option<u64> = raw_update_interval.as_u64();
         if interval.is_none() || interval.unwrap() > u32::MAX as u64 {
             panic!("The integer provided exceeded the u32 max");
         }
-        let join_handle: thread::JoinHandle<()> = setup_updater_thread(interval.unwrap() as u32 * 1000, projects);
-        join_handle.join().unwrap();
-    }
+        interval.unwrap() as u32 * 1000
+    };
+    let updater_communication: ThreadConnection = ThreadConnection::new();
+    let thread_join_handle: thread::JoinHandle<()> = setup_updater_thread(update_interval, projects, updater_communication);
+    thread_join_handle.join().unwrap();
+
+
+    // Start webserver (For API)
+    /*let raw_port: &Value = &config["port"];
+    let port: u16 = if !raw_port.is_number() {
+        9050
+    } else {
+        let port: Option<u64> = raw_port.as_u64();
+        if port.is_none() || port.unwrap() > u16::MAX as u64 {
+            panic!("Invalid webserver port");
+        }
+        port.unwrap() as u16
+    };
+    start_webserver(port);*/
 
     Ok(())
 }
 
+/// Spawns the updater thread for checking updates and controlling procedures
 /// Interval should be in milliseconds
-fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> thread::JoinHandle<()> {
+fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>, main_communication: ThreadConnection) -> thread::JoinHandle<()> {
     info!("Spawning updater thread");
+
+    let mut procedure_thread_connections: Vec<Arc<RwLock<ThreadProcedureConnection>>> = Vec::new();
+
     let updater_projects_ref = Arc::clone(&projects);
-    let (s, r) = unbounded();
-    let mut send_term: bool = false;
     thread::spawn(move || {
-        let mut temp_projects = updater_projects_ref.lock().unwrap();
+        let mut unlocked_projects = updater_projects_ref.lock().unwrap();
         loop {
+            debug!(format!("Updater thread sleeping for {} seconds", interval));
             thread::sleep(Duration::from_millis(interval as u64));
-            info!("Checking project repositories for updates");
-            // println!("Checking project repositories for updates"); // debug
-            for project in &mut *temp_projects { // Uhhh
+            debug!("Checking project repositories for updates");
+            for project in &mut *unlocked_projects {
                 let query_result = get_remote_git_repository_commits(&project.url);
                 if query_result.is_err() {
                     error!(format!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap()));
@@ -77,130 +105,53 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
 
                 let branches = query_result.unwrap();
                 for branch in &branches {
-                    if branch.name != "master" {
+                    let short_hash: String = branch.latest_commit_hash.chars().take(5).collect();
+                    debug!(format!("Current branch is {}. Current short commit hash is {}", branch.name, short_hash));
+                    let branch_search = project.branches.iter().find(|&b| b.name == branch.name);
+                    if branch_search.is_some() && branch_search.unwrap().latest_commit_hash == branch.latest_commit_hash {
                         continue;
                     }
-                    let mut short_hash = branch.latest_commit_hash.clone();
-                    short_hash.truncate(7);
-                    info!(format!("Current branch is {}. Current short commit hash is {hash}.", branch.name, hash = short_hash));
-                    let cached_branch = project.branches.iter().find(|&b| b.name == branch.name);
-                    if cached_branch.is_some() && cached_branch.unwrap().latest_commit_hash == branch.latest_commit_hash {
-                        continue;
-                    }
-                    // else
 
-                    info!(format!("Updating to commit {hash} in \"{branch}\" branch...", hash = short_hash, branch = branch.name));
-                    if send_term {
-                        s.send(Messages::Terminate).expect("Unable to send terminate signal!");
-                    } else {
-                        send_term = true;
-                    }
-                    let procedure_immediate_result = run_project_procedures(&project, &branch, r.clone());
+                    info!(format!("Updating to commit {} in the {} branch...", short_hash, branch.name));
+                    for procedure in &project.procedures {
+                        let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
+                        if branch_in_procedure.is_none() {
+                            continue;
+                        }
 
-                    if procedure_immediate_result.is_err() {
+                        // Kill previous procedure process
+                        for unlocked_procedure_thread_connection in &procedure_thread_connections {
+                            let procedure_thread_connection = &unlocked_procedure_thread_connection.read().unwrap();
+                            if procedure_thread_connection.remote_url == project.url && procedure_thread_connection.branch == branch.name && procedure_thread_connection.procedure_name == procedure.name {
+                                info!("Found previous running version. Attempting to send kill message");
+                                let sen = &procedure_thread_connection.owner_channel.sender.read().unwrap();
+                                sen.send(Command::KillProcedure);
+                                // TODO: Wait for response/timeout
+                            }
+                        }
+
+                        // Insert new connection
+                        procedure_thread_connections.push(Arc::new(RwLock::new(ThreadProcedureConnection::new(project.url.clone(), branch.name.clone(), procedure.name.clone()))));
+                        let procedure_connection = procedure_thread_connections.last_mut().unwrap();
+
+                        // Run procedure
+                        let procedure_immediate_result = run_project_procedure(&project, &branch, &procedure, Arc::clone(&procedure_connection));
+                    }
+
+                    /*if procedure_immediate_result.is_err() {
                         error!(format!("Error occurred while running procedure: {:?}", procedure_immediate_result));
                     } else {
-                        info!("Update succeeded.")
-                    }
+                        info!("Update most likely succeeded"); // Horribly incorrect
+                    }*/
                 }
 
                 project.update_branches(branches);
-                break;
             }
-            thread::sleep(Duration::from_millis(interval as u64));
         }
     })
-}
-
-fn run_project_procedures(project: &Project, branch: &Branch, r1: Receiver<Messages>) -> Result<(), Error> {
-    for procedure in &project.procedures {
-        let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
-        if branch_in_procedure.is_none() {
-            continue;
-        }
-        let repository_name: String = setup_git_repository(&project.url, &procedure.deploy_path)?;
-        let path = format!("{}/{}", procedure.deploy_path, repository_name);
-        let commands: Vec<String> = procedure.commands.clone();
-        let r = r1.clone();
-        let mut success = true;
-
-        thread::spawn(move || {
-            for command in commands {
-                info!(format!("[{}] Running command: {}", path, command));
-                let result_child_process = run_procedure_command(&command, &path);
-                if result_child_process.is_err() {
-                    break;
-                }
-                let mut child_process: Child = result_child_process.unwrap();
-                let child_stdout = child_process.stdout.take().unwrap();
-                let log_format = format!("[{}] Command ({})", path, command);
-
-                // Print std from child process
-                thread::spawn(move || {
-                    log_child_output(child_stdout, &log_format);
-                });
-
-                // kill child on signal
-                if !child_killer(&mut child_process, &r){
-                    println!("Skipping the remaining commands.");
-                    success = false;
-                    break;
-                }
-            }
-            if success {println!("Work completed successfully!");}
-        });
-        break;
-    }
-
-    Ok(())
-}
-
-fn child_killer(child: &mut Child, r: &Receiver<Messages>) -> bool {
-    loop {
-        let possible_status = child.try_wait().unwrap();
-        if !possible_status.is_none() {                     // if process completed
-            let status = possible_status.unwrap();
-            if status.success() {
-                return true;
-            }
-            match status.code() {
-                Some(code) => {println!("Exited with status code {}", code); return false}
-                None       => {println!("Process terminated by signal"); return false}
-            };
-        }
-        if let Ok(msg) = r.try_recv() {                     // If new message is available
-            if msg == Messages::Terminate {
-                println!("Terminating command.");
-                child.kill().expect("Command was not running.");
-                return false;
-            }
-        }
-    }
-}
-
-fn log_child_output(stdout: ChildStdout, log_format: &str) {
-    let stdout_reader = BufReader::new(stdout);
-    let mut stdout_lines = stdout_reader.lines();
-
-    loop {
-        let i = stdout_lines.next();                        // blocking
-        if !i.is_none() {
-            info!(format!("{}: {}", log_format, i.unwrap().unwrap()));
-        }
-        /*if !child_process.try_wait().unwrap().is_none() {   // commit suicide if child dies
-            return;
-        }*/
-    }
 }
 
 fn read_configuration() -> Result<Value, Error> {
     let raw_data: String = fs::read_to_string("config.json")?;
     Ok(serde_json::from_str(&raw_data)?)
-}
-
-#[derive(PartialEq)]
-enum Messages {
-    // Test, // dev
-    Terminate,
-    // Terminated,
 }

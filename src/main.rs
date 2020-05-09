@@ -79,8 +79,6 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
     thread::spawn(move || {
         let mut unlocked_projects = updater_projects_ref.lock().unwrap();
         loop {
-            debug!(format!("Updater thread sleeping for {} seconds", interval));
-            thread::sleep(Duration::from_millis(interval as u64));
             debug!("Checking project repositories for updates");
             for project in &mut *unlocked_projects {
                 let query_result = get_remote_git_repository_commits(&project.url);
@@ -123,16 +121,16 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                         // Run procedure
                         run_project_procedure(&project, &branch, &procedure, Arc::clone(&procedure_connection)).expect("Procedure failed!");
                     }
-
                     /*if procedure_immediate_result.is_err() {
                         error!(format!("Error occurred while running procedure: {:?}", procedure_immediate_result));
                     } else {
                         info!("Update most likely succeeded"); // Horribly incorrect
                     }*/
                 }
-
                 project.update_branches(branches);
             }
+            debug!(format!("Updater thread sleeping for {} seconds", interval));
+            thread::sleep(Duration::from_millis(interval as u64));
         }
     })
 }

@@ -14,9 +14,7 @@ mod system_cmd;
 mod procedure_manager;
 
 use model::project::Project;
-use model::project::branch::Branch;
-use model::project::procedure::Procedure;
-use model::channel::message::{Command, Response};
+use model::channel::message::Command;
 use model::channel::{ThreadConnection, ThreadProcedureConnection};
 use system_cmd::get_remote_git_repository_commits;
 use procedure_manager::run_project_procedure;

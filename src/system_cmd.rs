@@ -1,9 +1,8 @@
 use std::fs;
 use std::process::Stdio;
 //use tokio::io::{BufReader, AsyncBufReadExt};
-use failure::{Error, err_msg, bail};
+use failure::{Error, err_msg};
 use regex::Regex;
-use futures::executor::block_on;
 
 use crate::model::project::branch::Branch;
 

@@ -57,8 +57,8 @@ fn main() -> Result<(), Error> {
         }
         interval.unwrap() as u32 * 1000
     };
-    let updater_communication: ThreadConnection = ThreadConnection::new();
-    let thread_join_handle: thread::JoinHandle<()> = setup_updater_thread(update_interval, projects, updater_communication);
+    // let updater_communication: ThreadConnection = ThreadConnection::new();
+    let thread_join_handle: thread::JoinHandle<()> = setup_updater_thread(update_interval, projects);
     thread_join_handle.join().unwrap();
 
     Ok(())
@@ -66,7 +66,7 @@ fn main() -> Result<(), Error> {
 
 /// Spawns the updater thread for checking updates and controlling procedures
 /// Interval should be in milliseconds
-fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>, main_communication: ThreadConnection) -> thread::JoinHandle<()> {
+fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> thread::JoinHandle<()> {
     info!("Spawning updater thread");
 
     let mut procedure_thread_connections: Vec<Arc<RwLock<ThreadProcedureConnection>>> = Vec::new();
@@ -117,7 +117,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>, main_
                         let procedure_connection = procedure_thread_connections.last_mut().unwrap();
 
                         // Run procedure
-                        let procedure_immediate_result = run_project_procedure(&project, &branch, &procedure, Arc::clone(&procedure_connection));
+                        run_project_procedure(&project, &branch, &procedure, Arc::clone(&procedure_connection));
                     }
 
                     /*if procedure_immediate_result.is_err() {

@@ -61,7 +61,7 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
 }
 
 /// Manages a child and returns a future with a bool (true if command ran successfully)
-async fn manage_child(mut child: &mut Child, connection: &ThreadProcedureConnection) -> bool {
+async fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection) -> bool {
     let child_completion_future = complete_child(child).fuse();
     let command_exit = process_commands(&connection.owner_channel).fuse();
 

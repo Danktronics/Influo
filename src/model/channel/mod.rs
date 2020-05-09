@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 pub mod message;
@@ -7,8 +7,8 @@ use message::{Command, Response};
 
 #[derive(Debug)]
 pub struct Channel<T> {
-    pub receiver: UnboundedReceiver<T>,
-    pub sender: UnboundedSender<T>,
+    pub receiver: RwLock<UnboundedReceiver<T>>,
+    pub sender: RwLock<UnboundedSender<T>>,
 }
 
 #[derive(Debug)]
@@ -23,12 +23,12 @@ impl ThreadConnection {
         let (child_sender, child_receiver) = unbounded_channel();
         ThreadConnection {
             owner_channel: Channel::<Command> {
-                receiver: owner_receiver,
-                sender: owner_sender,
+                receiver: RwLock::new(owner_receiver),
+                sender: RwLock::new(owner_sender),
             },
             child_channel: Channel::<Response> {
-                receiver: child_receiver,
-                sender: child_sender,
+                receiver: RwLock::new(child_receiver),
+                sender: RwLock::new(child_sender),
             }
         }
     }
@@ -52,12 +52,12 @@ impl ThreadProcedureConnection {
             branch: branch,
             procedure_name: procedure_name,
             owner_channel: Channel::<Command> {
-                receiver: owner_receiver,
-                sender: owner_sender,
+                receiver: RwLock::new(owner_receiver),
+                sender: RwLock::new(owner_sender),
             },
             child_channel: Channel::<Response> {
-                receiver: child_receiver,
-                sender: child_sender,
+                receiver: RwLock::new(child_receiver),
+                sender: RwLock::new(child_sender),
             }
         }
     }

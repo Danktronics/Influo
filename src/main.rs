@@ -2,7 +2,7 @@
 use std::fs;
 use std::thread;
 use std::time::Duration;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use failure::{Error, err_msg};
 use serde_json::Value;
 
@@ -87,7 +87,7 @@ fn main() -> Result<(), Error> {
 fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>, main_communication: ThreadConnection) -> thread::JoinHandle<()> {
     info!("Spawning updater thread");
 
-    let mut procedure_thread_connections: Vec<Arc<Mutex<ThreadProcedureConnection>>> = Vec::new();
+    let mut procedure_thread_connections: Vec<Arc<RwLock<ThreadProcedureConnection>>> = Vec::new();
 
     let updater_projects_ref = Arc::clone(&projects);
     thread::spawn(move || {
@@ -121,19 +121,17 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>, main_
 
                         // Kill previous procedure process
                         for unlocked_procedure_thread_connection in &procedure_thread_connections {
-                            println!("pls");
-                            let procedure_thread_connection = &mut unlocked_procedure_thread_connection.lock().unwrap();
-                            println!("fuck");
+                            let procedure_thread_connection = &unlocked_procedure_thread_connection.read().unwrap();
                             if procedure_thread_connection.remote_url == project.url && procedure_thread_connection.branch == branch.name && procedure_thread_connection.procedure_name == procedure.name {
                                 info!("Found previous running version. Attempting to send kill message");
-                                let sen = &mut procedure_thread_connection.owner_channel.sender;
+                                let sen = &procedure_thread_connection.owner_channel.sender.read().unwrap();
                                 sen.send(Command::KillProcedure);
                                 // TODO: Wait for response/timeout
                             }
                         }
 
                         // Insert new connection
-                        procedure_thread_connections.push(Arc::new(Mutex::new(ThreadProcedureConnection::new(project.url.clone(), branch.name.clone(), procedure.name.clone()))));
+                        procedure_thread_connections.push(Arc::new(RwLock::new(ThreadProcedureConnection::new(project.url.clone(), branch.name.clone(), procedure.name.clone()))));
                         let procedure_connection = procedure_thread_connections.last_mut().unwrap();
 
                         // Run procedure

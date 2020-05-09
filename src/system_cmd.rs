@@ -101,10 +101,11 @@ pub fn run_procedure_command(command: &str, repository_path: &str) -> Result<tok
                 .stderr(Stdio::piped())
                 .spawn()?)
     } else { // Assume Linux, BSD, and OSX
-        Ok(tokio::process::Command::new("sh")
+        let args = shell_words::split(command).unwrap();
+        Ok(tokio::process::Command::new(&args[0])
                 .current_dir(repository_path)
-                .arg("-c") // Non-login and non-interactive
-                .args(&vec![command])
+                //.arg("-c") // Non-login and non-interactive
+                .args(if args.len() == 0 { &[][..] } else { &args[1..] })
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()?)

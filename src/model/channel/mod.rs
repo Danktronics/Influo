@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tokio::sync::oneshot::{Receiver, Sender, channel};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 pub mod message;
 
@@ -7,8 +7,8 @@ use message::{Command, Response};
 
 #[derive(Debug)]
 pub struct Channel<T> {
-    pub receiver: Receiver<T>,
-    pub sender: Sender<T>,
+    pub receiver: UnboundedReceiver<T>,
+    pub sender: UnboundedSender<T>,
 }
 
 #[derive(Debug)]
@@ -19,8 +19,8 @@ pub struct ThreadConnection {
 
 impl ThreadConnection {
     pub fn new() -> ThreadConnection {
-        let (owner_sender, owner_receiver) = channel();
-        let (child_sender, child_receiver) = channel();
+        let (owner_sender, owner_receiver) = unbounded_channel();
+        let (child_sender, child_receiver) = unbounded_channel();
         ThreadConnection {
             owner_channel: Channel::<Command> {
                 receiver: owner_receiver,
@@ -45,8 +45,8 @@ pub struct ThreadProcedureConnection {
 
 impl ThreadProcedureConnection {
     pub fn new(remote_url: String, branch: String, procedure_name: String) -> ThreadProcedureConnection {
-        let (owner_sender, owner_receiver) = channel();
-        let (child_sender, child_receiver) = channel();
+        let (owner_sender, owner_receiver) = unbounded_channel();
+        let (child_sender, child_receiver) = unbounded_channel();
         ThreadProcedureConnection {
             remote_url: remote_url,
             branch: branch,

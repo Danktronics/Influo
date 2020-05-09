@@ -87,7 +87,7 @@ fn main() -> Result<(), Error> {
 fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>, main_communication: ThreadConnection) -> thread::JoinHandle<()> {
     info!("Spawning updater thread");
 
-    let mut procedure_thread_connections: Vec<ThreadProcedureConnection> = Vec::new();
+    let mut procedure_thread_connections: Vec<Arc<Mutex<ThreadProcedureConnection>>> = Vec::new();
 
     let updater_projects_ref = Arc::clone(&projects);
     thread::spawn(move || {
@@ -120,19 +120,24 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>, main_
                         }
 
                         // Kill previous procedure process
-                        for procedure_thread_connection in &mut procedure_thread_connections {
+                        for unlocked_procedure_thread_connection in &procedure_thread_connections {
+                            println!("pls");
+                            let procedure_thread_connection = &mut unlocked_procedure_thread_connection.lock().unwrap();
+                            println!("fuck");
                             if procedure_thread_connection.remote_url == project.url && procedure_thread_connection.branch == branch.name && procedure_thread_connection.procedure_name == procedure.name {
-                                procedure_thread_connection.owner_channel.sender.send(Command::KillProcedure);
+                                info!("Found previous running version. Attempting to send kill message");
+                                let sen = &mut procedure_thread_connection.owner_channel.sender;
+                                sen.send(Command::KillProcedure);
                                 // TODO: Wait for response/timeout
                             }
                         }
 
                         // Insert new connection
-                        procedure_thread_connections.push(ThreadProcedureConnection::new(project.url.clone(), branch.name.clone(), procedure.name.clone()));
-                        let mut procedure_connection = procedure_thread_connections.last_mut().unwrap();
+                        procedure_thread_connections.push(Arc::new(Mutex::new(ThreadProcedureConnection::new(project.url.clone(), branch.name.clone(), procedure.name.clone()))));
+                        let procedure_connection = procedure_thread_connections.last_mut().unwrap();
 
                         // Run procedure
-                        let procedure_immediate_result = run_project_procedure(&project, &branch, &procedure, &mut procedure_connection);
+                        let procedure_immediate_result = run_project_procedure(&project, &branch, &procedure, Arc::clone(&procedure_connection));
                     }
 
                     /*if procedure_immediate_result.is_err() {

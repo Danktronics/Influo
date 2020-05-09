@@ -5,7 +5,7 @@ use futures::executor::block_on;
 use tokio::runtime::Builder;
 use tokio::process::Child;
 use tokio::io::{BufReader, AsyncBufReadExt};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::process::ExitStatus;
 
 use crate::model::project::Project;
@@ -15,7 +15,7 @@ use crate::model::channel::{ThreadConnection, ThreadProcedureConnection, Channel
 use crate::model::channel::message::{Command, Response};
 use crate::system_cmd::{get_remote_git_repository_commits, setup_git_repository, run_procedure_command};
 
-pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Procedure, procedure_thread_connection: &'static mut ThreadProcedureConnection) -> Result<(), Error> {
+pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Procedure, procedure_thread_connection: Arc<Mutex<ThreadProcedureConnection>>) -> Result<(), Error> {
     let repository_name: String = setup_git_repository(&project.url, &procedure.deploy_path, &branch.name)?;
     let path = format!("{}/{}/{}", procedure.deploy_path, repository_name, branch.name);
     let commands: Vec<String> = procedure.commands.clone();
@@ -50,7 +50,7 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
             });
 
             // Blocks the thread until the child process running the command has exited
-            if !runtime.block_on(manage_child(child_process, &mut procedure_thread_connection)) {
+            if !runtime.block_on(manage_child(child_process, &mut procedure_thread_connection.lock().unwrap())) {
                 //info!(format!("Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_connection.remote_url, procedure_connection.branch, procedure_connection.procedure_name));
                 success = false;
                 break;
@@ -73,7 +73,6 @@ async fn manage_child(child: Child, connection: &mut ThreadProcedureConnection) 
 
     select! {
         (success, exit_code) = child_completion_future => {
-            println!("d");
             /*let command_log: String = format!("[{}] [{}] {} exited with code {}", connection.remote_url, connection.branch, connection.procedure_name, exit_code);
             if success {
                 info!(command_log);
@@ -108,7 +107,8 @@ async fn complete_child(child: Child) -> (bool, i32) {
 /// yes
 async fn process_commands(connection: &mut Channel<Command>) {
     let rec = &mut connection.receiver;
-    if let Ok(msg) = rec.await {
+    if let Some(msg) = rec.recv().await {
+        println!("pls");
         if std::mem::discriminant(&msg) == std::mem::discriminant(&&Command::KillProcedure) {
             println!("end");
             //info!(format!("[{}] [{}] {}: Terminating due to command", connection.remote_url, connection.branch, connection.procedure_name));

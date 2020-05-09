@@ -4,8 +4,10 @@ use serde_json::Value;
 pub mod procedure;
 pub mod branch;
 
-use self::procedure::Procedure;
-use self::branch::Branch;
+use self::{
+    procedure::Procedure,
+    branch::Branch
+};
 
 #[derive(Debug)]
 pub struct Project {

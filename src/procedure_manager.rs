@@ -1,18 +1,30 @@
-use std::thread;
+use std::{
+    thread,
+    process::ExitStatus,
+    sync::{Arc, RwLock}
+};
 use failure::Error;
 use futures::{select, pin_mut, future::FutureExt};
-use tokio::runtime::Builder;
-use tokio::process::Child;
-use tokio::io::{BufReader, AsyncBufReadExt};
-use std::sync::{Arc, RwLock};
-use std::process::ExitStatus;
-
-use crate::model::project::Project;
-use crate::model::project::branch::Branch;
-use crate::model::project::procedure::Procedure;
-use crate::model::channel::{ThreadProcedureConnection, Channel};
-use crate::model::channel::message::Command;
-use crate::system_cmd::{setup_git_repository, run_procedure_command};
+use tokio::{
+    process::Child,
+    runtime::Builder,
+    io::{BufReader, AsyncBufReadExt}
+};
+use crate::{
+    model::{
+        project::{
+            Project,
+            branch::Branch,
+            procedure::Procedure,
+        },
+        channel::{
+            Channel,
+            ThreadProcedureConnection,
+            message::Command
+        }
+    },
+    system_cmd::{setup_git_repository, run_procedure_command}
+};
 
 pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Procedure, procedure_thread_connection: Arc<RwLock<ThreadProcedureConnection>>) -> Result<(), Error> {
     let repository_name: String = setup_git_repository(&project.url, &procedure.deploy_path, &branch.name)?;

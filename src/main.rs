@@ -1,8 +1,10 @@
 // Dependencies
-use std::fs;
-use std::thread;
-use std::time::Duration;
-use std::sync::{Arc, Mutex, RwLock};
+use std::{
+    fs,
+    thread,
+    time::Duration,
+    sync::{Arc, Mutex, RwLock}
+};
 use failure::{Error, err_msg};
 use serde_json::Value;
 
@@ -13,9 +15,11 @@ mod model;
 mod system_cmd;
 mod procedure_manager;
 
-use model::project::Project;
-use model::channel::message::Command;
-use model::channel::ThreadProcedureConnection;
+use model::{
+    project::Project,
+    channel::message::Command,
+    channel::ThreadProcedureConnection
+};
 use system_cmd::get_remote_git_repository_commits;
 use procedure_manager::run_project_procedure;
 use logger::{LOGGER, Logger};

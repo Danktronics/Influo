@@ -107,7 +107,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                         for unlocked_procedure_thread_connection in &procedure_thread_connections {
                             let procedure_thread_connection = &unlocked_procedure_thread_connection.read().unwrap();
                             if procedure_thread_connection.remote_url == project.url && procedure_thread_connection.branch == branch.name && procedure_thread_connection.procedure_name == procedure.name {
-                                info!("Found previous running version. Attempting to send kill message");
+                                info!(format!("[{}] Found previous running version. Attempting to send kill message", procedure.name));
                                 let sen = &procedure_thread_connection.owner_channel.sender.read().unwrap();
                                 sen.send(Command::KillProcedure).expect("Failed to send kill command!");
                                 // TODO: Wait for response/timeout
@@ -129,7 +129,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                 }
                 project.update_branches(branches);
             }
-            debug!(format!("Updater thread sleeping for {} seconds", interval));
+            debug!(format!("Updater thread sleeping for {} seconds", interval / 1000));
             thread::sleep(Duration::from_millis(interval as u64));
         }
     })

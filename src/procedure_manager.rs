@@ -30,11 +30,12 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
     let repository_name: String = setup_git_repository(&project.url, &procedure.deploy_path, &branch.name)?;
     let path = format!("{}/{}/{}", procedure.deploy_path, repository_name, branch.name);
     let commands: Vec<String> = procedure.commands.clone();
+    let procedure_name = procedure.name.clone();
 
     thread::spawn(move || {
         let mut success = true;
         for command in commands {
-            info!(format!("[{}] Running command: {}", path, command));
+            info!(format!("[{}] [{}] Running command: {}", procedure_name, path, command));
             let mut runtime = Builder::new().threaded_scheduler().enable_all().build().unwrap();
             let result_child_process = runtime.handle().enter(|| run_procedure_command(&command, &path));
             if result_child_process.is_err() {
@@ -43,13 +44,14 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
             let mut child_process: Child = result_child_process.unwrap();
 
             // Print stdout from child process asynchronously
+            let pname: String = procedure_name.clone();
             let p = path.clone();   // thanks Rust
             let c = command.clone();
             let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
             let mut stdout_reader = BufReader::new(stdout).lines();
             runtime.spawn(async move {
                 while let Some(line) = stdout_reader.next_line().await.unwrap() {
-                    info!(format!("[{}] Command ({}): {}", p, c, line));
+                    info!(format!("[{}] [{}] Command ({}): {}", pname, p, c, line));
                 }
             });
 
@@ -57,15 +59,15 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
             let read_connection = procedure_thread_connection.read().unwrap();
             if !runtime.block_on(manage_child(&mut child_process, &read_connection)) {
                 child_process.kill().expect("Failed to kill child process!");
-                info!(format!("Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", read_connection.remote_url, read_connection.branch, read_connection.procedure_name));
+                info!(format!("[{}] Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_name, read_connection.remote_url, read_connection.branch, read_connection.procedure_name));
                 success = false;
                 break;
             }
         }
         if success {
-            info!("Work completed successfully!");
+            info!(format!("[{}] Work completed successfully!", procedure_name));
         } else {
-            error!("Work did not complete");
+            error!(format!("[{}] Work did not complete.", procedure_name));
         }
     });
 
@@ -116,7 +118,7 @@ async fn complete_child(child: &mut Child) -> (bool, i32) {
 async fn process_commands(connection: &Channel<Command>) {
     let rec = &mut connection.receiver.write().unwrap();
     while let Some(msg) = rec.recv().await {
-        if std::mem::discriminant(&msg) == std::mem::discriminant(&&Command::KillProcedure) {
+        if std::mem::discriminant(&msg) == std::mem::discriminant(&Command::KillProcedure) {
             //info!(format!("[{}] [{}] {}: Terminating due to command", connection.remote_url, connection.branch, connection.procedure_name));
             break;
         }

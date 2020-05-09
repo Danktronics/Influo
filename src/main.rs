@@ -12,7 +12,6 @@ mod logger;
 mod model;
 mod system_cmd;
 mod procedure_manager;
-//mod webserver;
 
 use model::project::Project;
 use model::project::branch::Branch;
@@ -21,7 +20,6 @@ use model::channel::message::{Command, Response};
 use model::channel::{ThreadConnection, ThreadProcedureConnection};
 use system_cmd::get_remote_git_repository_commits;
 use procedure_manager::run_project_procedure;
-//use webserver::start_webserver;
 use logger::{LOGGER, Logger};
 
 fn main() -> Result<(), Error> {
@@ -64,20 +62,6 @@ fn main() -> Result<(), Error> {
     let updater_communication: ThreadConnection = ThreadConnection::new();
     let thread_join_handle: thread::JoinHandle<()> = setup_updater_thread(update_interval, projects, updater_communication);
     thread_join_handle.join().unwrap();
-
-
-    // Start webserver (For API)
-    /*let raw_port: &Value = &config["port"];
-    let port: u16 = if !raw_port.is_number() {
-        9050
-    } else {
-        let port: Option<u64> = raw_port.as_u64();
-        if port.is_none() || port.unwrap() > u16::MAX as u64 {
-            panic!("Invalid webserver port");
-        }
-        port.unwrap() as u16
-    };
-    start_webserver(port);*/
 
     Ok(())
 }

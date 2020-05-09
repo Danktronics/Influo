@@ -11,7 +11,6 @@ pub enum LogLevel {
     Error = 1,
     Warn = 2,
     Info = 3,
-    Debug = 4,
 }
 
 pub struct Logger {
@@ -43,8 +42,6 @@ impl Logger {
             "WARN"
         } else if log_level_num == 3 {
             "INFO"
-        } else if log_level_num == 4 {
-            "DEBUG"
         } else {
             "OTHER"
         };
@@ -59,8 +56,6 @@ impl Logger {
             LogLevel::Warn
         } else if str_level == "info" {
             LogLevel::Info
-        } else if str_level == "debug" {
-            LogLevel::Debug
         } else {
             LogLevel::Unknown
         }
@@ -88,13 +83,5 @@ macro_rules! info {
     ($msg:expr) => {{
         use $crate::logger::{LOGGER, LogLevel};
         LOGGER.lock().unwrap().log(&$msg, LogLevel::Info);
-    }}
-}
-
-#[macro_export]
-macro_rules! debug {
-    ($msg:expr) => {{
-        use $crate::logger::{LOGGER, LogLevel};
-        LOGGER.lock().unwrap().log(&$msg, LogLevel::Debug);
     }}
 }

@@ -12,8 +12,3 @@ failure = "0.1.7"
 regex = "1"
 lazy_static = "1.4.0"
 crossbeam-channel = "0.4"
-tokio = { version = "0.2", features = ["process", "rt-threaded"] }
-futures = "0.3.4"
-hyper = "0.13.5"
-bytes = "0.5.4"
-shell-words = "1.0.0"

@@ -15,7 +15,7 @@ mod procedure_manager;
 
 use model::project::Project;
 use model::channel::message::Command;
-use model::channel::{ThreadConnection, ThreadProcedureConnection};
+use model::channel::ThreadProcedureConnection;
 use system_cmd::get_remote_git_repository_commits;
 use procedure_manager::run_project_procedure;
 use logger::{LOGGER, Logger};
@@ -107,7 +107,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                             if procedure_thread_connection.remote_url == project.url && procedure_thread_connection.branch == branch.name && procedure_thread_connection.procedure_name == procedure.name {
                                 info!("Found previous running version. Attempting to send kill message");
                                 let sen = &procedure_thread_connection.owner_channel.sender.read().unwrap();
-                                sen.send(Command::KillProcedure);
+                                sen.send(Command::KillProcedure).expect("Failed to send kill command!");
                                 // TODO: Wait for response/timeout
                             }
                         }
@@ -117,7 +117,7 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                         let procedure_connection = procedure_thread_connections.last_mut().unwrap();
 
                         // Run procedure
-                        run_project_procedure(&project, &branch, &procedure, Arc::clone(&procedure_connection));
+                        run_project_procedure(&project, &branch, &procedure, Arc::clone(&procedure_connection)).expect("Procedure failed!");
                     }
 
                     /*if procedure_immediate_result.is_err() {

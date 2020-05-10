@@ -61,7 +61,7 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
             if !runtime.block_on(manage_child(&mut child_process, &read_connection)) {
                 match child_process.kill() {
                     Ok(()) => (),
-                    Err(e) => info!(format!("[{}] Unable to kill child process. It may already be dead."), procedure_name)
+                    Err(e) => warn!(format!("[{}] Unable to kill child process. It may already be dead."), procedure_name)
                 };
                 info!(format!("[{}] Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_name, read_connection.remote_url, read_connection.branch, read_connection.procedure_name));
                 success = false;

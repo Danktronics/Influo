@@ -44,9 +44,9 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
             }
             let mut child_process: Child = result_child_process.unwrap();
 
-            // Print stdout from child process asynchronously
+            // Print stdout and stderr from child process asynchronously
             let pname: String = procedure_name.clone();
-            let p = path.clone();   // thanks Rust
+            let p = path.clone();
             let c = command.clone();
             let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
             let stderr = child_process.stderr.take().expect("Child process stderr handle missing");
@@ -83,16 +83,11 @@ async fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection)
     pin_mut!(child_completion_future, command_exit);
 
     select! {
-        (success, exit_code) = child_completion_future => {
-            /*let command_log: String = format!("[{}] [{}] {} exited with code {}", connection.remote_url, connection.branch, connection.procedure_name, exit_code);
-            if success {
-                info!(command_log);
-            } else {
-                error!(command_log);
-            }*/
-            return success;
+        (success, exit_code) = child_completion_future => return success,
+        () = command_exit => {
+            debug!(format!("[{}] [{}] [{}]: Terminating due to Command::KillProcedure", connection.remote_url, connection.branch, connection.procedure_name));
+            return false
         },
-        () = command_exit => return false,
     }
 }
 
@@ -116,17 +111,17 @@ async fn complete_child(child: &mut Child) -> (bool, i32) {
 }
 
 /// Processes incoming messages from the updater thread
+/// Future will resolve if a KillProcedure is received
 async fn process_commands(connection: &Channel<Command>) {
     let rec = &mut connection.receiver.write().unwrap();
     while let Some(msg) = rec.recv().await {
         if std::mem::discriminant(&msg) == std::mem::discriminant(&Command::KillProcedure) {
-            //info!(format!("[{}] [{}] {}: Terminating due to command", connection.remote_url, connection.branch, connection.procedure_name));
             break;
         }
     }
 }
 
-// STDOUT and STDERR logging
+// STDOUT logging
 async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name: &String, path: &String, command: &String) {
     let mut stdout_reader = stdout_buffer.lines();
     while let Some(line) = stdout_reader.next_line().await.unwrap() {
@@ -134,6 +129,7 @@ async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name:
     }
 }
 
+// STDERR logging
 async fn read_stderr(stderr_buffer: &mut BufReader<ChildStderr>, procedure_name: &String, path: &String, command: &String) {
     let mut stderr_reader = stderr_buffer.lines();
     while let Some(line) = stderr_reader.next_line().await.unwrap() {

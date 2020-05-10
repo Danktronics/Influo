@@ -119,13 +119,8 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
                         let procedure_connection = procedure_thread_connections.last_mut().unwrap();
 
                         // Run procedure
-                        run_project_procedure(&project, &branch, &procedure, Arc::clone(&procedure_connection)).expect("Procedure failed!");
+                        run_project_procedure(&project, &branch, &procedure, Arc::clone(&procedure_connection)).expect("Procedure failed due to a git error!");
                     }
-                    /*if procedure_immediate_result.is_err() {
-                        error!(format!("Error occurred while running procedure: {:?}", procedure_immediate_result));
-                    } else {
-                        info!("Update most likely succeeded"); // Horribly incorrect
-                    }*/
                 }
                 project.update_branches(branches);
             }

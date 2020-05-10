@@ -1,93 +1,112 @@
-use std::process::Command;
-use std::fs;
-use std::process::{Child, Stdio};
+use std::{
+    fs,
+    process::Stdio
+};
+//use tokio::io::{BufReader, AsyncBufReadExt};
 use failure::{Error, err_msg};
 use regex::Regex;
 
 use crate::model::project::branch::Branch;
 
-fn run_system_command(command: &Vec<&String>, path: &str) -> Result<String, Error> {
+/// Synchronous function for running a system command in a child process
+fn run_system_command(command: &str, path: &str) -> Result<String, Error> {
     let raw_output = if cfg!(target_os = "windows") {
-        Command::new("cmd")
+        std::process::Command::new("cmd")
                 .current_dir(path)
                 .arg("/C")
-                .args(command)
+                .args(&vec![command])
                 .output()
     } else { // Assume Linux, BSD, and OSX
-        Command::new("sh")
+        std::process::Command::new("sh")
                 .current_dir(path)
                 .arg("-c") // Non-login and non-interactive
-                .args(command)
+                .args(&vec![command])
                 .output()
     };
     let output = raw_output?;
     if !output.status.success() {
-        return Err(err_msg(format!("Command failed ({:?})", command)));
+        let human_exit_code = if output.status.code().is_some() {
+            output.status.code().unwrap()
+        } else {
+            1 // Child process terminated by signal (UNIX) (should probably retrieve signal)
+        };
+        error!(format!("System command failed ({}) with status: {}", command, human_exit_code));
+        return Err(err_msg(format!("System command failure with code {}", human_exit_code)));
     }
 
     Ok(String::from_utf8(output.stdout)?)
 }
 
+/// Retrieves the remote git branches synchronously using git ls-remote
 pub fn get_remote_git_repository_commits(remote_url: &str) -> Result<Vec<Branch>, Error> {
-    let mut command: String = String::from("git ls-remote ");
-    command.push_str("--heads ");
-    command.push_str(remote_url);
-    let result = run_system_command(&vec![&command], "./")?;
-    let regex_pattern = Regex::new(r"([0-9a-fA-F]+)\s+refs/heads/(\S+)").unwrap(); // Overkill, might change later
+    let result: String = run_system_command(&format!("git ls-remote --heads {}", remote_url), "./")?;
+    let regex_pattern = Regex::new(r"([0-9a-fA-F]+)\s+refs/heads/(\S+)").unwrap();
     let mut branches: Vec<Branch> = Vec::new();
     for capture in regex_pattern.captures_iter(&result) {
         branches.push(Branch {
             name: capture.get(2).unwrap().as_str().to_string(),
             latest_commit_hash: capture.get(1).unwrap().as_str().to_string()
-        })
+        });
     }
 
     Ok(branches)
 }
 
-pub fn setup_git_repository(remote_url: &str, deploy_path: &str) -> Result<String, Error> {
-    // Make sure the deploy path is valid
-    fs::create_dir_all(deploy_path)?;
-
+pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch: &str) -> Result<String, Error> {
     // Download or update repository
     let regex_pattern = Regex::new(r"^(https|git)(://|@)([^/:]+)[/:]([^/:]+)/([^.]*)[.git]*?$").unwrap();
     let possible_captures = regex_pattern.captures(remote_url);
     if possible_captures.is_none() {
-        return Err(err_msg("Remote url did not pass regex (should not happen ever)"));
+        error!(format!("Remote url ({}) did not pass regex", remote_url));
+        return Err(err_msg(format!("Remote url ({}) did not pass regex", remote_url)));
     }
     let captures = possible_captures.unwrap();
     let possible_repository_name = captures.get(captures.len() - 1);
     if possible_repository_name.is_none() {
-        return Err(err_msg("Regex repository name failed"));
+        error!(format!("Remote url ({}) does not contain a valid name", remote_url));
+        return Err(err_msg(format!("Remote url ({}) does not contain a valid name", remote_url)));
     }
     let repository_name: &str = possible_repository_name.unwrap().as_str();
+    let project_path: String = format!("{}/{}", project_deploy_path, repository_name);
 
-    let clone_attempt = run_system_command(&vec!(&format!("git clone {}", remote_url)), deploy_path);
+    // Make sure the deploy path is valid
+    fs::create_dir_all(&project_path)?;
+
+    let clone_attempt = run_system_command(&format!("git clone {} {}", remote_url, branch), &project_path);
     if clone_attempt.is_err() {
-        let pull_attempt = run_system_command(&vec!(&"git pull".to_string()), &format!("{}/{}", deploy_path, repository_name));
-        if pull_attempt.is_err() {
-            return Err(err_msg("Failed to update repository (clone and pull failed)"));
+        if let Err(e0) = clone_attempt {
+            debug!(format!("Git clone attempt failed for {} due to: {}", remote_url, e0));
+            let pull_attempt = run_system_command(&"git pull", &format!("{}/{}", project_path, branch));
+            if pull_attempt.is_err() {
+                if let Err(e1) = pull_attempt {
+                    debug!(format!("Git pull attempt failed for {} due to: {}", remote_url, e1));
+                    error!(format!("Failed to update/create git repository with URL: {} and branch: {} in path: {}", remote_url, branch, project_path));
+                    return Err(err_msg(format!("Failed to update/create git repository with URL: {} and branch: {} in path: {}", remote_url, branch, project_path)));
+                }
+            }
         }
     }
 
     Ok(repository_name.to_string())
 }
 
-// Procedure commands are not guaranteed to end
-pub fn run_procedure_command(command: &str, repository_path: &str) -> Result<Child, Error> {
+/// Special system command runner for long running children
+/// Procedure commands are not guaranteed to end
+pub fn run_procedure_command(command: &str, repository_path: &str) -> Result<tokio::process::Child, Error> {
     if cfg!(target_os = "windows") {
-        Ok(Command::new("cmd")
+        Ok(tokio::process::Command::new("cmd")
                 .current_dir(repository_path)
                 .arg("/C")
-                .args(&vec!(command))
+                .args(&vec![command])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()?)
     } else { // Assume Linux, BSD, and OSX
-        Ok(Command::new("sh")
+        let args = shell_words::split(command).unwrap();
+        Ok(tokio::process::Command::new(&args[0])
                 .current_dir(repository_path)
-                .arg("-c") // Non-login and non-interactive
-                .args(&vec!(command))
+                //.arg("-c") // Non-login and non-interactive
+                .args(if args.len() == 0 { &[][..] } else { &args[1..] })
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()?)

@@ -59,7 +59,7 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
             // Blocks the thread until the child process running the command has exited
             let read_connection = procedure_thread_connection.read().unwrap();
             if !runtime.block_on(manage_child(&mut child_process, &read_connection)) {
-                child_process.kill().expect("Failed to kill child process!");
+                child_process.kill().unwrap();
                 info!(format!("[{}] Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_name, read_connection.remote_url, read_connection.branch, read_connection.procedure_name));
                 success = false;
                 break;

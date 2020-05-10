@@ -4,12 +4,13 @@ use std::{
     sync::{Arc, RwLock}
 };
 use failure::Error;
-use futures::{select, pin_mut, future::FutureExt};
+use futures::{select, pin_mut, join, future::FutureExt};
 use tokio::{
-    process::Child,
+    process::{Child, ChildStdout, ChildStderr},
     runtime::Builder,
     io::{BufReader, AsyncBufReadExt}
 };
+
 use crate::{
     model::{
         project::{
@@ -48,11 +49,11 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
             let p = path.clone();   // thanks Rust
             let c = command.clone();
             let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
-            let mut stdout_reader = BufReader::new(stdout).lines();
+            let stderr = child_process.stderr.take().expect("Child process stderr handle missing");
+            let mut stdout_reader = BufReader::new(stdout);
+            let mut stderr_reader = BufReader::new(stderr);
             runtime.spawn(async move {
-                while let Some(line) = stdout_reader.next_line().await.unwrap() {
-                    info!(format!("[{}] [{}] Command ({}): {}", pname, p, c, line));
-                }
+                join!(read_stdout(&mut stdout_reader, &pname, &p, &c), read_stderr(&mut stderr_reader, &pname, &p, &c));
             });
 
             // Blocks the thread until the child process running the command has exited
@@ -114,7 +115,7 @@ async fn complete_child(child: &mut Child) -> (bool, i32) {
     return (success, exit_code);
 }
 
-/// yes
+/// Processes incoming messages from the updater thread
 async fn process_commands(connection: &Channel<Command>) {
     let rec = &mut connection.receiver.write().unwrap();
     while let Some(msg) = rec.recv().await {
@@ -122,5 +123,20 @@ async fn process_commands(connection: &Channel<Command>) {
             //info!(format!("[{}] [{}] {}: Terminating due to command", connection.remote_url, connection.branch, connection.procedure_name));
             break;
         }
+    }
+}
+
+// STDOUT and STDERR logging
+async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name: &String, path: &String, command: &String) {
+    let mut stdout_reader = stdout_buffer.lines();
+    while let Some(line) = stdout_reader.next_line().await.unwrap() {
+        info!(format!("[{}] [{}] Command ({}): {}", procedure_name, path, command, line));
+    }
+}
+
+async fn read_stderr(stderr_buffer: &mut BufReader<ChildStderr>, procedure_name: &String, path: &String, command: &String) {
+    let mut stderr_reader = stderr_buffer.lines();
+    while let Some(line) = stderr_reader.next_line().await.unwrap() {
+        info!(format!("[{}] [{}] Command ({}): {}", procedure_name, path, command, line));
     }
 }

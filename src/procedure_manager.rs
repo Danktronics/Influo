@@ -10,6 +10,7 @@ use tokio::{
     runtime::Builder,
     io::{BufReader, AsyncBufReadExt}
 };
+use chrono::Utc;
 
 use crate::{
     model::{
@@ -61,7 +62,7 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
             if !runtime.block_on(manage_child(&mut child_process, &read_connection)) {
                 match child_process.kill() {
                     Ok(()) => (),
-                    Err(e) => warn!(format!("[{}] Unable to kill child process. It may already be dead."), procedure_name)
+                    Err(_e) => warn!(format!("[{}] Unable to kill child process. It may already be dead.", procedure_name))
                 };
                 info!(format!("[{}] Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_name, read_connection.remote_url, read_connection.branch, read_connection.procedure_name));
                 success = false;
@@ -128,7 +129,7 @@ async fn process_commands(connection: &Channel<Command>) {
 async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name: &String, path: &String, command: &String) {
     let mut stdout_reader = stdout_buffer.lines();
     while let Some(line) = stdout_reader.next_line().await.unwrap() {
-        info!(format!("[{}] [{}] Command ({}): {}", procedure_name, path, command, line));
+        info!(format!("[{}] [{}] [{}] Command ({}): {}", Utc::now().format("%H:%M:%S"), procedure_name, path, command, line)); // %H:%M:%S can be shortened to %T but that's fine. Additionally, %r will give formatted 12 hour time.
     }
 }
 
@@ -136,6 +137,6 @@ async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name:
 async fn read_stderr(stderr_buffer: &mut BufReader<ChildStderr>, procedure_name: &String, path: &String, command: &String) {
     let mut stderr_reader = stderr_buffer.lines();
     while let Some(line) = stderr_reader.next_line().await.unwrap() {
-        info!(format!("[{}] [{}] Command ({}): {}", procedure_name, path, command, line));
+        error!(format!("[{}] [{}] [{}] Command ({}): {}", Utc::now().format("%H:%M:%S"), procedure_name, path, command, line));
     }
 }

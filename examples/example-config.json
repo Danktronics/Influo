@@ -2,6 +2,7 @@
     "api_version": 1,
     "update_interval": 30,
     "log_level": "info",
+    "port": 9500,
     "default_deploy_path": "./projects",
     "projects": [
         {

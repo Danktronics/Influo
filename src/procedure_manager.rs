@@ -137,6 +137,6 @@ async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name:
 async fn read_stderr(stderr_buffer: &mut BufReader<ChildStderr>, procedure_name: &String, path: &String, command: &String) {
     let mut stderr_reader = stderr_buffer.lines();
     while let Some(line) = stderr_reader.next_line().await.unwrap() {
-        error!(format!("[{}] [{}] [{}] Command ({}): {}", Utc::now().format("%H:%M:%S"), procedure_name, path, command, line));
+        error!(format!("[{}] [{}] [{}] Command ({}): {}", Utc::now().format("%H:%M:%S"), procedure_name, path, command, line)); // same note as stdout
     }
 }

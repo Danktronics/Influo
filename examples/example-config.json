@@ -1,4 +1,5 @@
 {
+    "api_version": 1,
     "update_interval": 30,
     "log_level": "info",
     "default_deploy_path": "./projects",
@@ -16,7 +17,8 @@
                     "deploy_path": "./projects",
                     "branches": [
                         "master"
-                    ]
+                    ],
+                    "log": "[{time}] [{name}] [{path}] Command ({command}): {log}"
                 }
             ]
         }

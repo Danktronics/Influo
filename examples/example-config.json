@@ -19,7 +19,7 @@
                     "branches": [
                         "master"
                     ],
-                    "log": "[{time}] [{name}] [{path}] Command ({command}): {log}"
+                    "log": "[{name}] [{time}] [{path}] Command ({command}): {log}"
                 }
             ]
         }

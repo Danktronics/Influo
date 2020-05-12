@@ -135,7 +135,7 @@ async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name:
     };
     let mut stdout_reader = stdout_buffer.lines();
     while let Some(line) = stdout_reader.next_line().await.unwrap() {
-        let out: String = log_pattern.clone()
+        let out: String = log_pattern
             .replace("{name}", procedure_name)
             .replace("{time}", &Utc::now().format("%H:%M:%S").to_string()) // %H:%M:%S can be shortened to %T but that's fine. Additionally, %r will give formatted 12 hour time.
             .replace("{path}", path)
@@ -153,7 +153,7 @@ async fn read_stderr(stderr_buffer: &mut BufReader<ChildStderr>, procedure_name:
     };
     let mut stderr_reader = stderr_buffer.lines();
     while let Some(line) = stderr_reader.next_line().await.unwrap() {
-        let out: String = log_pattern.clone()
+        let out: String = log_pattern
             .replace("{name}", procedure_name)
             .replace("{time}", &Utc::now().format("%H:%M:%S").to_string()) // same note as stdout
             .replace("{path}", path)

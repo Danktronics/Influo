@@ -9,6 +9,7 @@ pub struct Procedure {
     pub condition: String,
     pub deploy_path: String,
     pub branches: Vec<String>,
+    pub log: Option<String>,
 }
 
 impl Procedure {
@@ -67,6 +68,16 @@ impl Procedure {
             branches.push(raw_branch.as_str().unwrap().to_string());
         }
 
+        let log: Option<String> = match raw_procedure.get("log") {
+            Some(v) => {
+                if !v.is_string() {
+                    return Err(err_msg("Log format is invalid"));
+                }
+                Some(v.as_str().unwrap().to_string())
+            },
+            None => None
+        };
+
         Ok(Procedure {
             name: name.to_string(),
             commands: commands,
@@ -74,6 +85,7 @@ impl Procedure {
             condition: condition.to_string(),
             deploy_path: deploy_path.to_string(),
             branches: branches,
+            log: log,
         })
     }
 }

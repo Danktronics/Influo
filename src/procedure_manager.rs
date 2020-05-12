@@ -33,6 +33,7 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
     let path = format!("{}/{}/{}", procedure.deploy_path, repository_name, branch.name);
     let commands: Vec<String> = procedure.commands.clone();
     let procedure_name = procedure.name.clone();
+    let procedure_log = procedure.log.clone();
 
     thread::spawn(move || {
         let mut success = true;
@@ -47,6 +48,7 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
 
             // Print stdout and stderr from child process asynchronously
             let pname: String = procedure_name.clone();
+            let plog: Option<String> = procedure_log.clone();
             let p = path.clone();
             let c = command.clone();
             let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
@@ -54,7 +56,7 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
             let mut stdout_reader = BufReader::new(stdout);
             let mut stderr_reader = BufReader::new(stderr);
             runtime.spawn(async move {
-                join!(read_stdout(&mut stdout_reader, &pname, &p, &c), read_stderr(&mut stderr_reader, &pname, &p, &c));
+                join!(read_stdout(&mut stdout_reader, &pname, &p, &c, &plog), read_stderr(&mut stderr_reader, &pname, &p, &c, &plog));
             });
 
             // Blocks the thread until the child process running the command has exited
@@ -89,7 +91,7 @@ async fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection)
     select! {
         (success, exit_code) = child_completion_future => return success,
         () = command_exit => {
-            debug!(format!("[{}] [{}] [{}]: Terminating due to Command::KillProcedure", connection.remote_url, connection.branch, connection.procedure_name));
+            debug!(format!("[{}]: Terminating due to Command::KillProcedure", connection.procedure_name));
             return false
         },
     }
@@ -126,17 +128,37 @@ async fn process_commands(connection: &Channel<Command>) {
 }
 
 // STDOUT logging
-async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name: &String, path: &String, command: &String) {
+async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name: &String, path: &String, command: &String, log: &Option<String>) {
+    let log_pattern = match log {
+        Some(log_pattern) => log_pattern,
+        None => return
+    };
     let mut stdout_reader = stdout_buffer.lines();
     while let Some(line) = stdout_reader.next_line().await.unwrap() {
-        info!(format!("[{}] [{}] [{}] Command ({}): {}", Utc::now().format("%H:%M:%S"), procedure_name, path, command, line)); // %H:%M:%S can be shortened to %T but that's fine. Additionally, %r will give formatted 12 hour time.
+        let out: String = log_pattern.clone()
+            .replace("{name}", procedure_name)
+            .replace("{time}", &Utc::now().format("%H:%M:%S").to_string()) // %H:%M:%S can be shortened to %T but that's fine. Additionally, %r will give formatted 12 hour time.
+            .replace("{path}", path)
+            .replace("{command}", command)
+            .replace("{log}", &line);
+        info!(out);
     }
 }
 
 // STDERR logging
-async fn read_stderr(stderr_buffer: &mut BufReader<ChildStderr>, procedure_name: &String, path: &String, command: &String) {
+async fn read_stderr(stderr_buffer: &mut BufReader<ChildStderr>, procedure_name: &String, path: &String, command: &String, log: &Option<String>) {
+    let log_pattern = match log {
+        Some(log_pattern) => log_pattern,
+        None => return
+    };
     let mut stderr_reader = stderr_buffer.lines();
     while let Some(line) = stderr_reader.next_line().await.unwrap() {
-        error!(format!("[{}] [{}] [{}] Command ({}): {}", Utc::now().format("%H:%M:%S"), procedure_name, path, command, line)); // same note as stdout
+        let out: String = log_pattern.clone()
+            .replace("{name}", procedure_name)
+            .replace("{time}", &Utc::now().format("%H:%M:%S").to_string()) // same note as stdout
+            .replace("{path}", path)
+            .replace("{command}", command)
+            .replace("{log}", &line);
+        error!(out);
     }
 }

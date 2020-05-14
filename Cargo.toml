@@ -1,6 +1,6 @@
 [package]
 name = "influo"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Sei4or <sei4or@gmail.com>", "sithsiri <sithpri@gmail.com>"]
 description = "CI / CD the right way"
 license = "MIT"

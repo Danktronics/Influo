@@ -9,63 +9,88 @@ pub struct Procedure {
     pub condition: String,
     pub deploy_path: String,
     pub branches: Vec<String>,
+    pub log: Option<String>,
 }
 
 impl Procedure {
-    pub fn new(raw_procedure: &Value, raw_default_deploy_path: &Value) -> Result<Procedure, Error> {
-        let raw_name: &Value = &raw_procedure["name"];
-        if !raw_name.is_string() {
-            return Err(err_msg("Name is invalid in procedure"));
-        }
-        let name: &str = raw_name.as_str().unwrap();
-
-        let raw_commands: &Value = &raw_procedure["commands"];
-        if !raw_commands.is_array() {
-            return Err(err_msg("Commands is invalid in procedure"));
-        }
-        let raw_commands_array: &Vec<Value> = raw_commands.as_array().unwrap();
-        let mut commands: Vec<String> = Vec::new();
-        for raw_command in raw_commands_array {
-            if !raw_command.is_string() {
-                return Err(err_msg("Procedure command is invalid"));
-            }
-            commands.push(raw_command.as_str().unwrap().to_string());
-        }
-
-        let raw_environment: &Value = &raw_procedure["environment"];
-        if !raw_environment.is_string() {
-            return Err(err_msg("Environment is invalid in procedure"));
-        }
-        let environment: &str = raw_environment.as_str().unwrap();
-
-        let raw_condition: &Value = &raw_procedure["condition"];
-        if !raw_condition.is_string() {
-            return Err(err_msg("Condition is invalid in procedure"));
-        }
-        let condition: &str = raw_condition.as_str().unwrap();
-
-        let raw_deploy_path: &Value = &raw_procedure["deploy_path"];
-        let deploy_path: &str = if !raw_deploy_path.is_string() {
-            if !raw_default_deploy_path.is_string() {
-                return Err(err_msg("Procedure deploy path was not set and default is invalid"));
-            }
-            raw_default_deploy_path.as_str().unwrap()
-        } else {
-            raw_deploy_path.as_str().unwrap()
+    pub fn new(raw_procedure: &Value, raw_default_deploy_path: Option<&Value>) -> Result<Procedure, Error> {
+        let name: &str = match raw_procedure.get("name") {
+            Some(raw_name) => match raw_name.as_str() {
+                Some(s) => s,
+                None => return Err(err_msg("Name is invalid in procedure")),
+            },
+            None => return Err(err_msg("Name not found in procedure")),
         };
 
-        let raw_branches: &Value = &raw_procedure["branches"];
-        if !raw_branches.is_array() {
-            return Err(err_msg("Branches is invalid in procedure"));
-        }
-        let raw_branches_array: &Vec<Value> = raw_branches.as_array().unwrap();
-        let mut branches: Vec<String> = Vec::new();
-        for raw_branch in raw_branches_array {
-            if !raw_branch.is_string() {
-                return Err(err_msg("Procedure branch is invalid"));
+        let raw_commands: &Vec<Value> = match raw_procedure.get("commands") {
+            Some(v) => match v.as_array() {
+                Some(v) => v,
+                None => return Err(err_msg("Commands is invalid in procedure")),
+            },
+            None => return Err(err_msg("Commands not found in procedure")),
+        };
+        let mut commands: Vec<String> = Vec::new();
+        for raw_command in raw_commands {
+            match raw_command.as_str() {
+                Some(s) => commands.push(s.to_string()),
+                None => return Err(err_msg("Procedure command is invalid")),
             }
-            branches.push(raw_branch.as_str().unwrap().to_string());
         }
+
+        let environment: &str = match raw_procedure.get("environment") {
+            Some(raw_environment) => match raw_environment.as_str() {
+                Some(s) => s,
+                None => return Err(err_msg("Environment is invalid in procedure")),
+            },
+            None => return Err(err_msg("Environment not found in procedure"))
+        };
+
+        let condition: &str = match raw_procedure.get("condition") {
+            Some(raw_condition) => match raw_condition.as_str() {
+                Some(s) => s,
+                None => return Err(err_msg("Condition is invalid in procedure")),
+            },
+            None => return Err(err_msg("Condition not found in procedure")),
+        };
+
+        let deploy_path: &str = match raw_procedure.get("deploy_path") {
+            Some(raw_deploy_path) => match raw_deploy_path.as_str() {
+                Some(s) => s,
+                None => return Err(err_msg("Deploy path is invalid in procedure")),
+            },
+            None => match raw_default_deploy_path {
+                Some(raw_default_deploy_path) => match raw_default_deploy_path.as_str() {
+                    Some(s) => s,
+                    None => return Err(err_msg("Default deploy path is invalid")),
+                },
+                None => return Err(err_msg("Both default and procedure deploy paths were not set"))
+            }
+        };
+
+        let raw_branches: &Vec<Value> = match raw_procedure.get("branches") {
+            Some(v) => match v.as_array() {
+                Some(v) => v,
+                None => return Err(err_msg("Branches is invalid in procedure")),
+            },
+            None => return Err(err_msg("Branches not found in procedure")),
+        };
+        let mut branches: Vec<String> = Vec::new();
+        for raw_branch in raw_branches {
+            match raw_branch.as_str() {
+                Some(b) => branches.push(b.to_string()),
+                None => return Err(err_msg("Procedure branch is invalid")),
+            }
+        }
+
+        let log: Option<String> = match raw_procedure.get("log") {
+            Some(v) => {
+                match v.as_str() {
+                    Some(s) => Some(s.to_string()),
+                    None => return Err(err_msg("Log format is invalid in procedure")),
+                }
+            },
+            None => None
+        };
 
         Ok(Procedure {
             name: name.to_string(),
@@ -74,6 +99,7 @@ impl Procedure {
             condition: condition.to_string(),
             deploy_path: deploy_path.to_string(),
             branches: branches,
+            log: log,
         })
     }
 }

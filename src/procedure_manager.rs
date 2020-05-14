@@ -89,10 +89,13 @@ async fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection)
     pin_mut!(child_completion_future, command_exit);
 
     select! {
-        (success, exit_code) = child_completion_future => return success,
+        (success, exit_code) = child_completion_future => {
+            debug!(format!("[{}]: Child exited with code {}", connection.procedure_name, exit_code));
+            return success;
+        },
         () = command_exit => {
             debug!(format!("[{}]: Terminating due to Command::KillProcedure", connection.procedure_name));
-            return false
+            return false;
         },
     }
 }

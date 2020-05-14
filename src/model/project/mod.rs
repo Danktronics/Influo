@@ -17,7 +17,7 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn new(raw_project: &Value, raw_default_deploy_path: &Value) -> Result<Project, Error> {
+    pub fn new(raw_project: &Value, raw_default_deploy_path: Option<&Value>) -> Result<Project, Error> {
         if !raw_project["url"].is_string() {
             return Err(err_msg("URL is invalid"));
         }

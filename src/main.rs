@@ -47,7 +47,7 @@ fn main() -> Result<(), Error> {
     let projects: Arc<Mutex<Vec<Project>>> = Arc::new(Mutex::new(Vec::new()));
     for raw_project in raw_projects_array {
         let mut temp_projects = projects.lock().unwrap();
-        temp_projects.push(Project::new(&raw_project, &config["default_deploy_path"])?);
+        temp_projects.push(Project::new(&raw_project, config.get("default_deploy_path"))?);
     }
 
     // Retrieve update interval and start the updater thread

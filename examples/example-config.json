@@ -16,7 +16,8 @@
                     "deploy_path": "./projects",
                     "branches": [
                         "master"
-                    ]
+                    ],
+                    "log": "[{name}] [{time}] [{path}] Command ({command}): {log}"
                 }
             ]
         }

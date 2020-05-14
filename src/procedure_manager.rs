@@ -47,17 +47,19 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
             let mut child_process: Child = result_child_process.unwrap();
 
             // Print stdout and stderr from child process asynchronously
-            let pname: String = procedure_name.clone();
-            let plog: Option<String> = procedure_log.clone();
-            let p = path.clone();
-            let c = command.clone();
-            let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
-            let stderr = child_process.stderr.take().expect("Child process stderr handle missing");
-            let mut stdout_reader = BufReader::new(stdout);
-            let mut stderr_reader = BufReader::new(stderr);
-            runtime.spawn(async move {
-                join!(read_stdout(&mut stdout_reader, &pname, &p, &c, &plog), read_stderr(&mut stderr_reader, &pname, &p, &c, &plog));
-            });
+            if procedure_log.is_some() {
+                let pname: String = procedure_name.clone();
+                let plog: String = procedure_log.clone().unwrap();
+                let p = path.clone();
+                let c = command.clone();
+                let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
+                let stderr = child_process.stderr.take().expect("Child process stderr handle missing");
+                let mut stdout_reader = BufReader::new(stdout);
+                let mut stderr_reader = BufReader::new(stderr);
+                runtime.spawn(async move {
+                    join!(read_stdout(&mut stdout_reader, &pname, &p, &c, &plog), read_stderr(&mut stderr_reader, &pname, &p, &c, &plog));
+                });
+            }
 
             // Blocks the thread until the child process running the command has exited
             let read_connection = procedure_thread_connection.read().unwrap();
@@ -131,11 +133,7 @@ async fn process_commands(connection: &Channel<Command>) {
 }
 
 // STDOUT logging
-async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name: &String, path: &String, command: &String, log: &Option<String>) {
-    let log_pattern = match log {
-        Some(log_pattern) => log_pattern,
-        None => return
-    };
+async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name: &String, path: &String, command: &String, log_pattern: &String) {
     let mut stdout_reader = stdout_buffer.lines();
     while let Some(line) = stdout_reader.next_line().await.unwrap() {
         let out: String = log_pattern
@@ -149,11 +147,7 @@ async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name:
 }
 
 // STDERR logging
-async fn read_stderr(stderr_buffer: &mut BufReader<ChildStderr>, procedure_name: &String, path: &String, command: &String, log: &Option<String>) {
-    let log_pattern = match log {
-        Some(log_pattern) => log_pattern,
-        None => return
-    };
+async fn read_stderr(stderr_buffer: &mut BufReader<ChildStderr>, procedure_name: &String, path: &String, command: &String, log_pattern: &String) {
     let mut stderr_reader = stderr_buffer.lines();
     while let Some(line) = stderr_reader.next_line().await.unwrap() {
         let out: String = log_pattern

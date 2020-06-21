@@ -3,7 +3,7 @@ use std::{
     process::ExitStatus,
     sync::{Arc, RwLock}
 };
-use failure::Error;
+use anyhow::Error;
 use futures::{select, pin_mut, join, future::FutureExt};
 use tokio::{
     process::{Child, ChildStdout, ChildStderr},

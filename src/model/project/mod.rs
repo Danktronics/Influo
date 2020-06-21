@@ -1,4 +1,4 @@
-use failure::{Error, err_msg};
+use anyhow::{Error, anyhow};
 use serde_json::Value;
 
 pub mod procedure;
@@ -19,12 +19,12 @@ pub struct Project {
 impl Project {
     pub fn new(raw_project: &Value, raw_default_deploy_path: Option<&Value>) -> Result<Project, Error> {
         if !raw_project["url"].is_string() {
-            return Err(err_msg("URL is invalid"));
+            return Err(anyhow!("URL is invalid"));
         }
         let url: &str = raw_project["url"].as_str().unwrap();
 
         if !raw_project["procedures"].is_array() {
-            return Err(err_msg("Procedures is invalid"));
+            return Err(anyhow!("Procedures is invalid"));
         }
         let raw_procedures_array: &Vec<Value> = raw_project["procedures"].as_array().unwrap();
         let mut procedures: Vec<Procedure> = Vec::new();

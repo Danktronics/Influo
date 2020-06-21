@@ -76,7 +76,7 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
         if success {
             info!(format!("[{}] Work completed successfully!", procedure_name));
         } else {
-            error!(format!("[{}] Work did not complete.", procedure_name));
+            warn!(format!("[{}] Work did not complete.", procedure_name));
         }
     });
 

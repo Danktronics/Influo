@@ -30,7 +30,7 @@ fn run_system_command(command: &str, path: &str) -> Result<String, Error> {
         } else {
             1 // Child process terminated by signal (UNIX) (should probably retrieve signal)
         };
-        error!(format!("System command failed ({}) with status: {}", command, human_exit_code));
+        debug!(format!("System command failed ({}) with status: {}", command, human_exit_code));
         return Err(anyhow!("System command failure with code {}", human_exit_code));
     }
 

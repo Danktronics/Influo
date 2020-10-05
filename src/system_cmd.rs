@@ -3,7 +3,7 @@ use std::{
     process::Stdio
 };
 //use tokio::io::{BufReader, AsyncBufReadExt};
-use failure::{Error, err_msg};
+use anyhow::{Error, anyhow};
 use regex::Regex;
 
 use crate::model::project::branch::Branch;
@@ -30,8 +30,8 @@ fn run_system_command(command: &str, path: &str) -> Result<String, Error> {
         } else {
             1 // Child process terminated by signal (UNIX) (should probably retrieve signal)
         };
-        error!(format!("System command failed ({}) with status: {}", command, human_exit_code));
-        return Err(err_msg(format!("System command failure with code {}", human_exit_code)));
+        debug!(format!("System command failed ({}) with status: {}", command, human_exit_code));
+        return Err(anyhow!("System command failure with code {}", human_exit_code));
     }
 
     Ok(String::from_utf8(output.stdout)?)
@@ -58,13 +58,13 @@ pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch:
     let possible_captures = regex_pattern.captures(remote_url);
     if possible_captures.is_none() {
         error!(format!("Remote url ({}) did not pass regex", remote_url));
-        return Err(err_msg(format!("Remote url ({}) did not pass regex", remote_url)));
+        return Err(anyhow!("Remote url ({}) did not pass regex", remote_url));
     }
     let captures = possible_captures.unwrap();
     let possible_repository_name = captures.get(captures.len() - 1);
     if possible_repository_name.is_none() {
         error!(format!("Remote url ({}) does not contain a valid name", remote_url));
-        return Err(err_msg(format!("Remote url ({}) does not contain a valid name", remote_url)));
+        return Err(anyhow!("Remote url ({}) does not contain a valid name", remote_url));
     }
     let repository_name: &str = possible_repository_name.unwrap().as_str();
     let project_path: String = format!("{}/{}", project_deploy_path, repository_name);
@@ -81,7 +81,7 @@ pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch:
                 if let Err(e1) = pull_attempt {
                     debug!(format!("Git pull attempt failed for {} due to: {}", remote_url, e1));
                     error!(format!("Failed to update/create git repository with URL: {} and branch: {} in path: {}", remote_url, branch, project_path));
-                    return Err(err_msg(format!("Failed to update/create git repository with URL: {} and branch: {} in path: {}", remote_url, branch, project_path)));
+                    return Err(anyhow!("Failed to update/create git repository with URL: {} and branch: {} in path: {}", remote_url, branch, project_path));
                 }
             }
         }

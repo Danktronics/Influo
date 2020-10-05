@@ -5,7 +5,7 @@ use std::{
     time::Duration,
     sync::{Arc, Mutex, RwLock}
 };
-use failure::{Error, err_msg};
+use anyhow::{Error, anyhow};
 use serde_json::Value;
 
 // Project Modules
@@ -41,7 +41,7 @@ fn main() -> Result<(), Error> {
     // Process and cache projects
     let raw_projects: &Value = &config["projects"];
     if !raw_projects.is_array() {
-        return Err(err_msg("Projects is invalid"));
+        return Err(anyhow!("Projects is invalid"));
     }
     let raw_projects_array: &Vec<Value> = raw_projects.as_array().unwrap();
     let projects: Arc<Mutex<Vec<Project>>> = Arc::new(Mutex::new(Vec::new()));
@@ -56,7 +56,7 @@ fn main() -> Result<(), Error> {
         30
     } else {
         let interval: Option<u64> = raw_update_interval.as_u64();
-        if interval.is_none() || interval.unwrap() > u32::MAX as u64 {
+        if interval.is_none() || interval.unwrap() > std::u32::MAX as u64 {
             panic!("The integer provided exceeded the u32 max");
         }
         interval.unwrap() as u32 * 1000

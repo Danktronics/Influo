@@ -72,11 +72,11 @@ pub fn setup_git_repository(remote_url: &str, project_deploy_path: &str, branch:
     // Make sure the deploy path is valid
     fs::create_dir_all(&project_path)?;
 
-    let clone_attempt = run_system_command(&format!("git clone {} {}", remote_url, branch), &project_path);
+    let clone_attempt = run_system_command(&format!("git clone --single-branch --branch {} {} {}", branch, remote_url, branch), &project_path);
     if clone_attempt.is_err() {
         if let Err(e0) = clone_attempt {
             debug!(format!("Git clone attempt failed for {} due to: {}", remote_url, e0));
-            let pull_attempt = run_system_command(&"git pull", &format!("{}/{}", project_path, branch));
+            let pull_attempt = run_system_command(&format!("git pull origin {}", branch), &format!("{}/{}", project_path, branch));
             if pull_attempt.is_err() {
                 if let Err(e1) = pull_attempt {
                     debug!(format!("Git pull attempt failed for {} due to: {}", remote_url, e1));

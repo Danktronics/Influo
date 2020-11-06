@@ -8,8 +8,17 @@ pub struct Procedure {
     pub environment: String,
     pub condition: String,
     pub deploy_path: String,
+    pub auto_restart: AutoRestartPolicy,
     pub branches: Vec<String>,
     pub log: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum AutoRestartPolicy {
+    Always, // If the command was unsuccessful, restart
+    Never, // If the command was unsuccessful, don't restart
+    ExclusionCodes(Vec<i32>), // If the command was unsuccessful and if it is NOT one of the exclusion codes restart
+    InclusionCodes(Vec<i32>), // If the command was unsuccessful and if it is one of the inclusion codes restart
 }
 
 impl Procedure {
@@ -67,6 +76,67 @@ impl Procedure {
             }
         };
 
+        let auto_restart: AutoRestartPolicy = match raw_procedure.get("auto_restart") {
+            Some(raw_auto_restart) => match raw_auto_restart.as_bool() {
+                Some(raw_auto_restart_bool) => {
+                    if raw_auto_restart_bool {
+                        AutoRestartPolicy::Always
+                    } else {
+                        AutoRestartPolicy::Never
+                    }
+                },
+                None => match raw_auto_restart.as_object() {
+                    Some(raw_auto_restart_object) => {
+                        if raw_auto_restart_object.contains_key("only") {
+                            match raw_auto_restart_object.get("only").unwrap().as_array() {
+                                Some(raw_auto_restart_inclusion_codes) => {
+                                    let mut inclusion_codes: Vec<i32> = Vec::new();
+                                    for raw_code in raw_auto_restart_inclusion_codes {
+                                        match raw_code.as_u64() {
+                                            Some(raw_code_u64) => {
+                                                if raw_code_u64 > std::i32::MAX as u64 {
+                                                    return Err(anyhow!("An auto restart integer provided exceeded the i32 max"));
+                                                }
+
+                                                inclusion_codes.push(raw_code_u64 as i32);
+                                            },
+                                            None => return Err(anyhow!("An auto restart value is not a valid i32"))
+                                        }
+                                    }
+                                    AutoRestartPolicy::InclusionCodes(inclusion_codes)
+                                },
+                                None => return Err(anyhow!("Auto restart rule inclusion codes not an array"))
+                            }
+                        } else if raw_auto_restart_object.contains_key("not") {
+                            match raw_auto_restart_object.get("not").unwrap().as_array() {
+                                Some(raw_auto_restart_inclusion_codes) => {
+                                    let mut exclusion_codes: Vec<i32> = Vec::new();
+                                    for raw_code in raw_auto_restart_inclusion_codes {
+                                        match raw_code.as_u64() {
+                                            Some(raw_code_u64) => {
+                                                if raw_code_u64 > std::i32::MAX as u64 {
+                                                    return Err(anyhow!("An auto restart integer provided exceeded the i32 max"));
+                                                }
+
+                                                exclusion_codes.push(raw_code_u64 as i32);
+                                            },
+                                            None => return Err(anyhow!("An auto restart value is not a valid i32"))
+                                        }
+                                    }
+                                    AutoRestartPolicy::ExclusionCodes(exclusion_codes)
+                                },
+                                None => return Err(anyhow!("Auto restart rule exclusion codes not an array"))
+                            }
+                        } else {
+                            return Err(anyhow!("Auto restart rule object does not specify a valid rule"));
+                        }
+                    },
+                    None => return Err(anyhow!("Auto restart rule is not an object or boolean"))
+                }
+            },
+            None => AutoRestartPolicy::Never
+        };
+
         let raw_branches: &Vec<Value> = match raw_procedure.get("branches") {
             Some(v) => match v.as_array() {
                 Some(v) => v,
@@ -98,6 +168,7 @@ impl Procedure {
             environment: environment.to_string(),
             condition: condition.to_string(),
             deploy_path: deploy_path.to_string(),
+            auto_restart: auto_restart,
             branches: branches,
             log: log,
         })

@@ -43,8 +43,9 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
             let command = &commands[current_command_index];
 
             info!(format!("[{}] [{}] Running command: {}", procedure_name, path, command));
-            let mut runtime = Builder::new().threaded_scheduler().enable_all().build().unwrap();
-            let result_child_process = runtime.handle().enter(|| run_procedure_command(&command, &path));
+            let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
+            let _guard = runtime.enter();
+            let result_child_process = run_procedure_command(&command, &path);
             if result_child_process.is_err() {
                 break;
             }
@@ -90,7 +91,7 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
                     };
                     
                     if !should_restart {
-                        match child_process.kill() {
+                        match runtime.block_on(child_process.kill()) {
                             Ok(()) => (),
                             Err(_e) => warn!(format!("[{}] Unable to kill child process. It may already be dead.", procedure_name))
                         };
@@ -146,7 +147,7 @@ async fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection)
 /// Bool indicates whether it exited successfully
 /// i32 is status code
 async fn complete_child(child: &mut Child) -> (bool, i32) {
-    let status_result: Result<ExitStatus, std::io::Error> = child.await; // Blocking
+    let status_result: Result<ExitStatus, std::io::Error> = child.wait().await;
     if status_result.is_err() {
         return (false, 1);
     }

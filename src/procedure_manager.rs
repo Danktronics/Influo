@@ -17,7 +17,7 @@ use crate::{
         project::{
             Project,
             branch::Branch,
-            procedure::Procedure,
+            procedure::{Procedure, AutoRestartPolicy},
         },
         channel::{
             Channel,
@@ -34,13 +34,18 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
     let commands: Vec<String> = procedure.commands.clone();
     let procedure_name = procedure.name.clone();
     let procedure_log = procedure.log.clone();
+    let procedure_restart_policy = procedure.auto_restart.clone();
 
     thread::spawn(move || {
         let mut success = true;
-        for command in commands {
+        let mut current_command_index = 0;
+        loop {
+            let command = &commands[current_command_index];
+
             info!(format!("[{}] [{}] Running command: {}", procedure_name, path, command));
-            let mut runtime = Builder::new().threaded_scheduler().enable_all().build().unwrap();
-            let result_child_process = runtime.handle().enter(|| run_procedure_command(&command, &path));
+            let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
+            let _guard = runtime.enter();
+            let result_child_process = run_procedure_command(&command, &path);
             if result_child_process.is_err() {
                 break;
             }
@@ -63,13 +68,47 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
 
             // Blocks the thread until the child process running the command has exited
             let read_connection = procedure_thread_connection.read().unwrap();
-            if !runtime.block_on(manage_child(&mut child_process, &read_connection)) {
-                match child_process.kill() {
-                    Ok(()) => (),
-                    Err(_e) => warn!(format!("[{}] Unable to kill child process. It may already be dead.", procedure_name))
-                };
-                info!(format!("[{}] Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_name, read_connection.remote_url, read_connection.branch, read_connection.procedure_name));
-                success = false;
+            let child_result = runtime.block_on(manage_child(&mut child_process, &read_connection));
+            if !child_result.0 {
+                if let Some(exit_code) = child_result.1 {
+                    let should_restart = match &procedure_restart_policy {
+                        AutoRestartPolicy::Always => true,
+                        AutoRestartPolicy::Never => false,
+                        AutoRestartPolicy::ExclusionCodes(excluded_codes) => {
+                            if !excluded_codes.contains(&exit_code) {
+                                true
+                            } else {
+                                false
+                            }
+                        },
+                        AutoRestartPolicy::InclusionCodes(included_codes) => {
+                            if included_codes.contains(&exit_code) {
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                    };
+                    
+                    if !should_restart {
+                        match runtime.block_on(child_process.kill()) {
+                            Ok(()) => (),
+                            Err(_e) => warn!(format!("[{}] Unable to kill child process. It may already be dead.", procedure_name))
+                        };
+                        info!(format!("[{}] Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_name, read_connection.remote_url, read_connection.branch, read_connection.procedure_name));
+                        success = false;
+                        break;
+                    }
+                } else {
+                    error!(format!("[{}] Encountered unsuccessful child response with missing exit code", procedure_name));
+                    success = false;
+                    break;
+                }
+            } else {
+                current_command_index += 1;
+            }
+
+            if commands.len() == current_command_index {
                 break;
             }
         }
@@ -83,8 +122,10 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
     Ok(())
 }
 
-/// Manages a child and returns a future with a bool (true if command ran successfully)
-async fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection) -> bool {
+/// Manages a child and returns a future with the result
+/// Result.0 is if the command was successful
+/// Result.1 is if the command should be rerun
+async fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection) -> (bool, Option<i32>) {
     let child_completion_future = complete_child(child).fuse();
     let command_exit = process_commands(&connection.owner_channel).fuse();
 
@@ -93,11 +134,11 @@ async fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection)
     select! {
         (success, exit_code) = child_completion_future => {
             debug!(format!("[{}]: Child exited with code {}", connection.procedure_name, exit_code));
-            return success;
+            return (success, Some(exit_code));
         },
         () = command_exit => {
             debug!(format!("[{}]: Terminating due to Command::KillProcedure", connection.procedure_name));
-            return false;
+            return (false, None);
         },
     }
 }
@@ -106,7 +147,7 @@ async fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection)
 /// Bool indicates whether it exited successfully
 /// i32 is status code
 async fn complete_child(child: &mut Child) -> (bool, i32) {
-    let status_result: Result<ExitStatus, std::io::Error> = child.await; // Blocking
+    let status_result: Result<ExitStatus, std::io::Error> = child.wait().await;
     if status_result.is_err() {
         return (false, 1);
     }

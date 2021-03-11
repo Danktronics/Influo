@@ -74,20 +74,8 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
                     let should_restart = match &procedure_restart_policy {
                         AutoRestartPolicy::Always => true,
                         AutoRestartPolicy::Never => false,
-                        AutoRestartPolicy::ExclusionCodes(excluded_codes) => {
-                            if !excluded_codes.contains(&exit_code) {
-                                true
-                            } else {
-                                false
-                            }
-                        },
-                        AutoRestartPolicy::InclusionCodes(included_codes) => {
-                            if included_codes.contains(&exit_code) {
-                                true
-                            } else {
-                                false
-                            }
-                        }
+                        AutoRestartPolicy::ExclusionCodes(excluded_codes) => !excluded_codes.contains(&exit_code),
+                        AutoRestartPolicy::InclusionCodes(included_codes) => included_codes.contains(&exit_code)
                     };
                     
                     if !should_restart {
@@ -174,7 +162,7 @@ async fn process_commands(connection: &Channel<Command>) {
 }
 
 // STDOUT logging
-async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name: &String, path: &String, command: &String, log_pattern: &String) {
+async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name: &str, path: &str, command: &str, log_pattern: &str) {
     let mut stdout_reader = stdout_buffer.lines();
     while let Some(line) = stdout_reader.next_line().await.unwrap() {
         let out: String = log_pattern
@@ -188,7 +176,7 @@ async fn read_stdout(stdout_buffer: &mut BufReader<ChildStdout>, procedure_name:
 }
 
 // STDERR logging
-async fn read_stderr(stderr_buffer: &mut BufReader<ChildStderr>, procedure_name: &String, path: &String, command: &String, log_pattern: &String) {
+async fn read_stderr(stderr_buffer: &mut BufReader<ChildStderr>, procedure_name: &str, path: &str, command: &str, log_pattern: &str) {
     let mut stderr_reader = stderr_buffer.lines();
     while let Some(line) = stderr_reader.next_line().await.unwrap() {
         let out: String = log_pattern

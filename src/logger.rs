@@ -21,7 +21,7 @@ pub struct Logger {
 impl Logger {
     pub fn new(log_level: LogLevel) -> Logger {
         Logger {
-            log_level: log_level,
+            log_level,
         }
     }
 

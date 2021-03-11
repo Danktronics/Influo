@@ -164,13 +164,13 @@ impl Procedure {
 
         Ok(Procedure {
             name: name.to_string(),
-            commands: commands,
+            commands,
             environment: environment.to_string(),
             condition: condition.to_string(),
             deploy_path: deploy_path.to_string(),
-            auto_restart: auto_restart,
-            branches: branches,
-            log: log,
+            auto_restart,
+            branches,
+            log,
         })
     }
 }

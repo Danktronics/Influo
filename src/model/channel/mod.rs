@@ -48,9 +48,9 @@ impl ThreadProcedureConnection {
         let (owner_sender, owner_receiver) = unbounded_channel();
         let (child_sender, child_receiver) = unbounded_channel();
         ThreadProcedureConnection {
-            remote_url: remote_url,
-            branch: branch,
-            procedure_name: procedure_name,
+            remote_url,
+            branch,
+            procedure_name,
             owner_channel: Channel::<Command> {
                 receiver: RwLock::new(owner_receiver),
                 sender: RwLock::new(owner_sender),

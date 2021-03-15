@@ -1,7 +1,8 @@
 use anyhow::{Error, anyhow};
 use serde_json::Value;
+use serde::Serialize;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Procedure {
     pub name: String,
     pub commands: Vec<String>,
@@ -13,7 +14,7 @@ pub struct Procedure {
     pub log: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum AutoRestartPolicy {
     Always, // If the command was unsuccessful, restart
     Never, // If the command was unsuccessful, don't restart

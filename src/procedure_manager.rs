@@ -36,76 +36,78 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
     let procedure_log = procedure.log.clone();
     let procedure_restart_policy = procedure.auto_restart.clone();
 
-    thread::spawn(move || {
-        let mut success = true;
-        let mut current_command_index = 0;
-        loop {
-            let command = &commands[current_command_index];
-
-            info!(format!("[{}] [{}] Running command: {}", procedure_name, path, command));
-            let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
-            let _guard = runtime.enter();
-            let result_child_process = run_procedure_command(&command, &path);
-            if result_child_process.is_err() {
-                break;
-            }
-            let mut child_process: Child = result_child_process.unwrap();
-
-            // Print stdout and stderr from child process asynchronously
-            if procedure_log.is_some() {
-                let pname: String = procedure_name.clone();
-                let plog: String = procedure_log.clone().unwrap();
-                let p = path.clone();
-                let c = command.clone();
-                let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
-                let stderr = child_process.stderr.take().expect("Child process stderr handle missing");
-                let mut stdout_reader = BufReader::new(stdout);
-                let mut stderr_reader = BufReader::new(stderr);
-                runtime.spawn(async move {
-                    join!(read_stdout(&mut stdout_reader, &pname, &p, &c, &plog), read_stderr(&mut stderr_reader, &pname, &p, &c, &plog));
-                });
-            }
-
-            // Blocks the thread until the child process running the command has exited
-            let read_connection = procedure_thread_connection.read().unwrap();
-            let child_result = runtime.block_on(manage_child(&mut child_process, &read_connection));
-            if !child_result.0 {
-                if let Some(exit_code) = child_result.1 {
-                    let should_restart = match &procedure_restart_policy {
-                        AutoRestartPolicy::Always => true,
-                        AutoRestartPolicy::Never => false,
-                        AutoRestartPolicy::ExclusionCodes(excluded_codes) => !excluded_codes.contains(&exit_code),
-                        AutoRestartPolicy::InclusionCodes(included_codes) => included_codes.contains(&exit_code)
-                    };
-                    
-                    if !should_restart {
-                        match runtime.block_on(child_process.kill()) {
-                            Ok(()) => (),
-                            Err(_e) => warn!(format!("[{}] Unable to kill child process. It may already be dead.", procedure_name))
+    if !commands.is_empty() {
+        thread::spawn(move || {
+            let mut success = true;
+            let mut current_command_index = 0;
+            loop {
+                let command = &commands[current_command_index];
+    
+                info!(format!("[{}] [{}] Running command: {}", procedure_name, path, command));
+                let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
+                let _guard = runtime.enter();
+                let result_child_process = run_procedure_command(&command, &path);
+                if result_child_process.is_err() {
+                    break;
+                }
+                let mut child_process: Child = result_child_process.unwrap();
+    
+                // Print stdout and stderr from child process asynchronously
+                if procedure_log.is_some() {
+                    let pname: String = procedure_name.clone();
+                    let plog: String = procedure_log.clone().unwrap();
+                    let p = path.clone();
+                    let c = command.clone();
+                    let stdout = child_process.stdout.take().expect("Child process stdout handle missing");
+                    let stderr = child_process.stderr.take().expect("Child process stderr handle missing");
+                    let mut stdout_reader = BufReader::new(stdout);
+                    let mut stderr_reader = BufReader::new(stderr);
+                    runtime.spawn(async move {
+                        join!(read_stdout(&mut stdout_reader, &pname, &p, &c, &plog), read_stderr(&mut stderr_reader, &pname, &p, &c, &plog));
+                    });
+                }
+    
+                // Blocks the thread until the child process running the command has exited
+                let read_connection = procedure_thread_connection.read().unwrap();
+                let child_result = runtime.block_on(manage_child(&mut child_process, &read_connection));
+                if !child_result.0 {
+                    if let Some(exit_code) = child_result.1 {
+                        let should_restart = match &procedure_restart_policy {
+                            AutoRestartPolicy::Always => true,
+                            AutoRestartPolicy::Never => false,
+                            AutoRestartPolicy::ExclusionCodes(excluded_codes) => !excluded_codes.contains(&exit_code),
+                            AutoRestartPolicy::InclusionCodes(included_codes) => included_codes.contains(&exit_code)
                         };
-                        info!(format!("[{}] Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_name, read_connection.remote_url, read_connection.branch, read_connection.procedure_name));
+                        
+                        if !should_restart {
+                            match runtime.block_on(child_process.kill()) {
+                                Ok(()) => (),
+                                Err(_e) => warn!(format!("[{}] Unable to kill child process. It may already be dead.", procedure_name))
+                            };
+                            info!(format!("[{}] Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_name, read_connection.remote_url, read_connection.branch, read_connection.procedure_name));
+                            success = false;
+                            break;
+                        }
+                    } else {
+                        error!(format!("[{}] Encountered unsuccessful child response with missing exit code", procedure_name));
                         success = false;
                         break;
                     }
                 } else {
-                    error!(format!("[{}] Encountered unsuccessful child response with missing exit code", procedure_name));
-                    success = false;
+                    current_command_index += 1;
+                }
+    
+                if commands.len() == current_command_index {
                     break;
                 }
+            }
+            if success {
+                info!(format!("[{}] Work completed successfully!", procedure_name));
             } else {
-                current_command_index += 1;
+                warn!(format!("[{}] Work did not complete.", procedure_name));
             }
-
-            if commands.len() == current_command_index {
-                break;
-            }
-        }
-        if success {
-            info!(format!("[{}] Work completed successfully!", procedure_name));
-        } else {
-            warn!(format!("[{}] Work did not complete.", procedure_name));
-        }
-    });
+        });
+    }
 
     Ok(())
 }

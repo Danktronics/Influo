@@ -15,6 +15,9 @@ mod model;
 mod system_cmd;
 mod procedure_manager;
 
+#[cfg(feature = "http-api")]
+mod api;
+
 use model::{
     project::Project,
     channel::message::Command,
@@ -24,7 +27,11 @@ use system_cmd::get_remote_git_repository_commits;
 use procedure_manager::run_project_procedure;
 use logger::{LOGGER, Logger};
 
-fn main() -> Result<(), Error> {
+#[cfg(feature = "http-api")]
+use api::http::start_http_server;
+
+#[tokio::main]
+async fn main() -> Result<(), Error> {
     info!("Influo is running!");
 
     // Load Configuration
@@ -50,7 +57,7 @@ fn main() -> Result<(), Error> {
         temp_projects.push(Project::new(&raw_project, config.get("default_deploy_path"))?);
     }
 
-    // Retrieve update interval and start the updater thread
+    // Retrieve update interval
     let raw_update_interval: &Value = &config["update_interval"];
     let update_interval: u32 = if raw_update_interval.is_null() || !raw_update_interval.is_number() {
         30
@@ -61,7 +68,11 @@ fn main() -> Result<(), Error> {
         }
         interval.unwrap() as u32 * 1000
     };
-    // let updater_communication: ThreadConnection = ThreadConnection::new();
+
+    #[cfg(feature = "http-api")]
+    start_http_server(Arc::clone(&projects))?;
+
+    // Start the updater thread
     let thread_join_handle: thread::JoinHandle<()> = setup_updater_thread(update_interval, projects);
     thread_join_handle.join().unwrap();
 
@@ -77,53 +88,56 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
 
     let updater_projects_ref = Arc::clone(&projects);
     thread::spawn(move || {
-        let mut unlocked_projects = updater_projects_ref.lock().unwrap();
         loop {
-            debug!("Checking project repositories for updates");
-            for project in &mut *unlocked_projects {
-                let query_result = get_remote_git_repository_commits(&project.url);
-                if query_result.is_err() {
-                    error!(format!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap()));
-                    continue;
-                }
-
-                let branches = query_result.unwrap();
-                for branch in &branches {
-                    let short_hash: String = branch.latest_commit_hash.chars().take(5).collect();
-                    debug!(format!("Current branch is {}. Current short commit hash is {}", branch.name, short_hash));
-                    let branch_search = project.branches.iter().find(|&b| b.name == branch.name);
-                    if branch_search.is_some() && branch_search.unwrap().latest_commit_hash == branch.latest_commit_hash {
+            {
+                let mut projects = updater_projects_ref.lock().unwrap();
+                debug!("Checking project repositories for updates");
+                for project in &mut *projects {
+                    let query_result = get_remote_git_repository_commits(&project.url);
+                    if query_result.is_err() {
+                        error!(format!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap()));
                         continue;
                     }
-
-                    info!(format!("Updating to commit {} in the {} branch...", short_hash, branch.name));
-                    for procedure in &project.procedures {
-                        let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
-                        if branch_in_procedure.is_none() {
+    
+                    let branches = query_result.unwrap();
+                    for branch in &branches {
+                        let short_hash: String = branch.latest_commit_hash.chars().take(5).collect();
+                        debug!(format!("Current branch is {}. Current short commit hash is {}", branch.name, short_hash));
+                        let branch_search = project.branches.iter().find(|&b| b.name == branch.name);
+                        if branch_search.is_some() && branch_search.unwrap().latest_commit_hash == branch.latest_commit_hash {
                             continue;
                         }
-
-                        // Kill previous procedure process
-                        for unlocked_procedure_thread_connection in &procedure_thread_connections {
-                            let procedure_thread_connection = &unlocked_procedure_thread_connection.read().unwrap();
-                            if procedure_thread_connection.remote_url == project.url && procedure_thread_connection.branch == branch.name && procedure_thread_connection.procedure_name == procedure.name {
-                                info!(format!("[{}] Found previous running version. Attempting to send kill message", procedure.name));
-                                let sen = &procedure_thread_connection.owner_channel.sender.read().unwrap();
-                                sen.send(Command::KillProcedure).expect("Failed to send kill command!");
-                                // TODO: Wait for response/timeout
+    
+                        info!(format!("Updating to commit {} in the {} branch...", short_hash, branch.name));
+                        for procedure in &project.procedures {
+                            let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
+                            if branch_in_procedure.is_none() {
+                                continue;
                             }
+    
+                            // Kill previous procedure process
+                            for unlocked_procedure_thread_connection in &procedure_thread_connections {
+                                let procedure_thread_connection = &unlocked_procedure_thread_connection.read().unwrap();
+                                if procedure_thread_connection.remote_url == project.url && procedure_thread_connection.branch == branch.name && procedure_thread_connection.procedure_name == procedure.name {
+                                    info!(format!("[{}] Found previous running version. Attempting to send kill message", procedure.name));
+                                    let sen = &procedure_thread_connection.owner_channel.sender.read().unwrap();
+                                    sen.send(Command::KillProcedure).expect("Failed to send kill command!");
+                                    // TODO: Wait for response/timeout
+                                }
+                            }
+    
+                            // Insert new connection
+                            procedure_thread_connections.push(Arc::new(RwLock::new(ThreadProcedureConnection::new(project.url.clone(), branch.name.clone(), procedure.name.clone()))));
+                            let procedure_connection = procedure_thread_connections.last_mut().unwrap();
+    
+                            // Run procedure
+                            run_project_procedure(&project, &branch, &procedure, Arc::clone(&procedure_connection)).expect("Procedure failed due to a git error!");
                         }
-
-                        // Insert new connection
-                        procedure_thread_connections.push(Arc::new(RwLock::new(ThreadProcedureConnection::new(project.url.clone(), branch.name.clone(), procedure.name.clone()))));
-                        let procedure_connection = procedure_thread_connections.last_mut().unwrap();
-
-                        // Run procedure
-                        run_project_procedure(&project, &branch, &procedure, Arc::clone(&procedure_connection)).expect("Procedure failed due to a git error!");
                     }
+                    project.update_branches(branches);
                 }
-                project.update_branches(branches);
             }
+
             debug!(format!("Updater thread sleeping for {} seconds", interval / 1000));
             thread::sleep(Duration::from_millis(interval as u64));
         }

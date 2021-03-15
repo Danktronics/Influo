@@ -1,5 +1,6 @@
 use anyhow::{Error, anyhow};
 use serde_json::Value;
+use serde::Serialize;
 
 pub mod procedure;
 pub mod branch;
@@ -9,7 +10,7 @@ use self::{
     branch::Branch
 };
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Project {
     pub url: String,
     pub procedures: Vec<Procedure>,

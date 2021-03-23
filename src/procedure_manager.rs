@@ -29,8 +29,8 @@ use crate::{
 };
 
 pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Procedure, procedure_thread_connection: Arc<RwLock<ThreadProcedureConnection>>) -> Result<(), Error> {
-    let repository_name: String = setup_git_repository(&project.url, &procedure.deploy_path, &branch.name)?;
-    let path = format!("{}/{}/{}", procedure.deploy_path, repository_name, branch.name);
+    let repository_name: String = setup_git_repository(&project.url, procedure.deploy_path.as_ref().unwrap(), &branch.name)?;
+    let path = format!("{}/{}/{}", procedure.deploy_path.as_ref().unwrap(), repository_name, branch.name);
     let commands: Vec<String> = procedure.commands.clone();
     let procedure_name = procedure.name.clone();
     let procedure_log = procedure.log.clone();

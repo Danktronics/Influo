@@ -1,6 +1,5 @@
 // Dependencies
 use std::{
-    fs,
     thread,
     time::Duration,
     sync::{Arc, Mutex, RwLock}
@@ -14,11 +13,13 @@ mod logger;
 mod model;
 mod system_cmd;
 mod procedure_manager;
+mod filesystem;
 
 #[cfg(feature = "http-api")]
 mod api;
 
 use model::{
+    Configuration,
     project::Project,
     channel::message::Command,
     channel::ThreadProcedureConnection
@@ -26,6 +27,7 @@ use model::{
 use system_cmd::get_remote_git_repository_commits;
 use procedure_manager::run_project_procedure;
 use logger::{LOGGER, Logger};
+use filesystem::read_configuration;
 
 #[cfg(feature = "http-api")]
 use api::http::start_http_server;
@@ -36,44 +38,52 @@ async fn main() -> Result<(), Error> {
 
     // Load Configuration
     let raw_config: Result<Value, Error> = read_configuration();
-    if raw_config.is_err() {
+    if let Err(error) = raw_config {
         error!("Configuration not found");
-        return Err(raw_config.err().unwrap());
-    }
-    let config: Value = raw_config.unwrap();
-    if config["log_level"].is_string() {
-        LOGGER.lock().unwrap().set_log_level(Logger::string_to_log_level(&config["log_level"].as_str().unwrap()));
+        return Err(error);
     }
 
-    // Process and cache projects
-    let raw_projects: &Value = &config["projects"];
-    if !raw_projects.is_array() {
-        return Err(anyhow!("Projects is invalid"));
-    }
-    let raw_projects_array: &Vec<Value> = raw_projects.as_array().unwrap();
-    let projects: Arc<Mutex<Vec<Project>>> = Arc::new(Mutex::new(Vec::new()));
-    for raw_project in raw_projects_array {
-        let mut temp_projects = projects.lock().unwrap();
-        temp_projects.push(Project::new(&raw_project, config.get("default_deploy_path"))?);
-    }
-
-    // Retrieve update interval
-    let raw_update_interval: &Value = &config["update_interval"];
-    let update_interval: u32 = if raw_update_interval.is_null() || !raw_update_interval.is_number() {
-        30
-    } else {
-        let interval: Option<u64> = raw_update_interval.as_u64();
-        if interval.is_none() || interval.unwrap() > std::u32::MAX as u64 {
-            panic!("The integer provided exceeded the u32 max");
+    let mut configuration: Configuration = serde_json::from_value(raw_config.unwrap())?;
+    for project in &mut configuration.projects {
+        for mut procedure in &mut project.procedures {
+            if procedure.deploy_path.is_none() {
+                procedure.deploy_path = Some(configuration.default_deploy_path.clone());
+            }
         }
-        interval.unwrap() as u32 * 1000
-    };
+    }
+
+    LOGGER.lock().unwrap().set_log_level(configuration.log_level);
+
+    let protected_configuration = Arc::new(Mutex::new(configuration));
 
     #[cfg(feature = "http-api")]
-    start_http_server(Arc::clone(&projects))?;
+    {
+        // TODO: There is almost certainly a more idiomatic method
+        let port: u16 = match &config.get("api") {
+            Some(api) => match api.get("http") {
+                Some(http) => match http.get("port") {
+                    Some(port) => match port.as_u64() {
+                        Some(port) => {
+                            if port > std::u16::MAX as u64 {
+                                panic!("The HTTP API port provided exceeded the u16 max")
+                            }
+
+                            port as u16
+                        },
+                        None => panic!("HTTP API port is invalid")
+                    }
+                    None => 4200
+                },
+                None => 4200
+            },
+            None => 4200
+        };
+
+        start_http_server(port, Arc::clone(&protected_configuration))?;
+    }
 
     // Start the updater thread
-    let thread_join_handle: thread::JoinHandle<()> = setup_updater_thread(update_interval, projects);
+    let thread_join_handle: thread::JoinHandle<()> = setup_updater_thread(protected_configuration);
     thread_join_handle.join().unwrap();
 
     Ok(())
@@ -81,18 +91,20 @@ async fn main() -> Result<(), Error> {
 
 /// Spawns the updater thread for checking updates and controlling procedures
 /// Interval should be in milliseconds
-fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> thread::JoinHandle<()> {
+fn setup_updater_thread(configuration: Arc<Mutex<Configuration>>) -> thread::JoinHandle<()> {
     info!("Spawning updater thread");
 
     let mut procedure_thread_connections: Vec<Arc<RwLock<ThreadProcedureConnection>>> = Vec::new();
 
-    let updater_projects_ref = Arc::clone(&projects);
+    // let updater_projects_ref = Arc::clone(&projects);
     thread::spawn(move || {
         loop {
+            let interval;
             {
-                let mut projects = updater_projects_ref.lock().unwrap();
+                let mut configuration = configuration.lock().unwrap();
+                interval = configuration.update_interval;
                 debug!("Checking project repositories for updates");
-                for project in &mut *projects {
+                for project in &mut *configuration.projects {
                     let query_result = get_remote_git_repository_commits(&project.url);
                     if query_result.is_err() {
                         error!(format!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap()));
@@ -142,9 +154,4 @@ fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> th
             thread::sleep(Duration::from_millis(interval as u64));
         }
     })
-}
-
-fn read_configuration() -> Result<Value, Error> {
-    let raw_data: String = fs::read_to_string("config.json")?;
-    Ok(serde_json::from_str(&raw_data)?)
 }

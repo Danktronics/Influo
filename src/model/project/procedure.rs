@@ -16,6 +16,7 @@ pub struct Procedure {
     pub auto_restart: AutoRestartPolicy,
     pub branches: Vec<String>,
     pub log: Option<String>,
+    #[serde(default)]
     pub persistent: bool
 }
 
@@ -80,7 +81,7 @@ impl<'de> Deserialize<'de> for AutoRestartPolicy {
             {
                 let mut only = None;
                 let mut not = None;
-                while let Ok(Some((key, value))) = map.next_entry::<&str, Vec<i32>>() {
+                while let Ok(Some((key, value))) = map.next_entry::<String, Vec<i32>>() {
                     if key == "only" {
                         only = Some(value);
                     } else if key == "not" {

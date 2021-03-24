@@ -14,7 +14,9 @@ use self::{
 pub struct Project {
     pub url: String,
     pub procedures: Vec<Procedure>,
+    #[serde(skip)]
     pub branches: Vec<Branch>,
+    #[serde(default)]
     pub persistent: bool
 }
 

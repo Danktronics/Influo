@@ -130,8 +130,8 @@ fn setup_updater_thread(configuration: Arc<Mutex<Configuration>>) -> thread::Joi
                 }
             }
 
-            debug!(format!("Updater thread sleeping for {} seconds", interval / 1000));
-            thread::sleep(Duration::from_millis(interval as u64));
+            debug!(format!("Updater thread sleeping for {} seconds", interval));
+            thread::sleep(Duration::from_secs(interval as u64));
         }
     })
 }

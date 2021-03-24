@@ -75,7 +75,6 @@ fn setup_updater_thread(configuration: Arc<Mutex<Configuration>>) -> thread::Joi
 
     let mut procedure_thread_connections: Vec<Arc<RwLock<ThreadProcedureConnection>>> = Vec::new();
 
-    // let updater_projects_ref = Arc::clone(&projects);
     thread::spawn(move || {
         loop {
             let interval;

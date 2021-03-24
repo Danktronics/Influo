@@ -2,7 +2,8 @@ use std::fmt;
 
 use anyhow::{Error, anyhow};
 use serde_json::Value;
-use serde::{Serialize, Deserialize, Deserializer, de};
+use serde::{Serializer, Serialize, Deserialize, Deserializer, de};
+use serde::ser::SerializeStruct;
 use serde::de::{Visitor, MapAccess};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -18,12 +19,34 @@ pub struct Procedure {
     pub persistent: bool
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub enum AutoRestartPolicy {
     Always, // If the command was unsuccessful, restart
     Never, // If the command was unsuccessful, don't restart
     ExclusionCodes(Vec<i32>), // If the command was unsuccessful and if it is NOT one of the exclusion codes restart
     InclusionCodes(Vec<i32>), // If the command was unsuccessful and if it is one of the inclusion codes restart
+}
+
+impl Serialize for AutoRestartPolicy {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer
+    {
+        match self {
+            AutoRestartPolicy::Always => serializer.serialize_bool(true),
+            AutoRestartPolicy::Never => serializer.serialize_bool(false),
+            AutoRestartPolicy::ExclusionCodes(exclusion_codes) => {
+                let mut state = serializer.serialize_struct("AutoRestartPolicy", 1)?;
+                state.serialize_field("not", &exclusion_codes)?;
+                state.end()
+            },
+            AutoRestartPolicy::InclusionCodes(inclusion_codes) => {
+                let mut state = serializer.serialize_struct("AutoRestartPolicy", 1)?;
+                state.serialize_field("only", &inclusion_codes)?;
+                state.end()
+            }
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for AutoRestartPolicy {
@@ -66,7 +89,7 @@ impl<'de> Deserialize<'de> for AutoRestartPolicy {
                 }
 
                 if only.is_some() && not.is_some() {
-                    return Err(de::Error::custom(format!("Found both \"only\" and \"not\" in auto_restart")));
+                    return Err(de::Error::custom("Found both \"only\" and \"not\" in auto_restart"));
                 }
 
                 if let Some(only) = only {

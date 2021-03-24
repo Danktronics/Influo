@@ -60,9 +60,7 @@ async fn main() -> Result<(), Error> {
     let protected_configuration = Arc::new(Mutex::new(configuration));
 
     #[cfg(feature = "http-api")]
-    {
-        start_http_server(Arc::clone(&protected_configuration))?;
-    }
+    start_http_server(Arc::clone(&protected_configuration))?;
 
     // Start the updater thread
     let thread_join_handle: thread::JoinHandle<()> = setup_updater_thread(protected_configuration);

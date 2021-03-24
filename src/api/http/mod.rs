@@ -68,7 +68,9 @@ pub fn start_http_server(configuration: Arc<Mutex<Configuration>>) -> Result<(),
         None => return Err(anyhow!("Missing API configuration"))
     }
     
+    debug!(format!("Attempting to bind HTTP server to 127.0.0.1:{}", port));
     let server_builder = Server::try_bind(&SocketAddr::from(([127, 0, 0, 1], port)))?;
+    info!(format!("Bound HTTP server to 127.0.0.1:{}", port));
 
     let service = make_service_fn(move |_| {
         let configuration = Arc::clone(&configuration);

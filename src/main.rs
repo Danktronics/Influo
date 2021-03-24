@@ -4,7 +4,7 @@ use std::{
     time::Duration,
     sync::{Arc, Mutex, RwLock}
 };
-use anyhow::{Error, anyhow};
+use anyhow::Error;
 use serde_json::Value;
 
 // Project Modules
@@ -20,13 +20,12 @@ mod api;
 
 use model::{
     Configuration,
-    project::Project,
     channel::message::Command,
     channel::ThreadProcedureConnection
 };
 use system_cmd::get_remote_git_repository_commits;
 use procedure_manager::run_project_procedure;
-use logger::{LOGGER, Logger};
+use logger::{LOGGER};
 use filesystem::read_configuration;
 
 #[cfg(feature = "http-api")]

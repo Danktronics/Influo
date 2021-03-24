@@ -5,8 +5,6 @@ use hyper::service::{make_service_fn, service_fn};
 use hyper::body::Buf;
 use hyper::{Server, Request, Response, header, Body, Method, StatusCode};
 
-use serde::Deserialize;
-
 use anyhow::anyhow;
 
 use crate::model::{Configuration, project::Project};

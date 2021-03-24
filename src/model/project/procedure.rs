@@ -5,7 +5,7 @@ use serde_json::Value;
 use serde::{Serialize, Deserialize, Deserializer, de};
 use serde::de::{Visitor, MapAccess};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Procedure {
     pub name: String,
     pub commands: Vec<String>,
@@ -15,6 +15,7 @@ pub struct Procedure {
     pub auto_restart: AutoRestartPolicy,
     pub branches: Vec<String>,
     pub log: Option<String>,
+    pub persistent: bool
 }
 
 #[derive(Debug, Clone, Serialize)]

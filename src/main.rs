@@ -45,9 +45,12 @@ async fn main() -> Result<(), Error> {
 
     let mut configuration: Configuration = serde_json::from_value(raw_config.unwrap())?;
     for project in &mut configuration.projects {
+        project.persistent = true;
+        
         for mut procedure in &mut project.procedures {
             if procedure.deploy_path.is_none() {
                 procedure.deploy_path = Some(configuration.default_deploy_path.clone());
+                procedure.persistent = true;
             }
         }
     }
@@ -58,28 +61,7 @@ async fn main() -> Result<(), Error> {
 
     #[cfg(feature = "http-api")]
     {
-        // TODO: There is almost certainly a more idiomatic method
-        let port: u16 = match &config.get("api") {
-            Some(api) => match api.get("http") {
-                Some(http) => match http.get("port") {
-                    Some(port) => match port.as_u64() {
-                        Some(port) => {
-                            if port > std::u16::MAX as u64 {
-                                panic!("The HTTP API port provided exceeded the u16 max")
-                            }
-
-                            port as u16
-                        },
-                        None => panic!("HTTP API port is invalid")
-                    }
-                    None => 4200
-                },
-                None => 4200
-            },
-            None => 4200
-        };
-
-        start_http_server(port, Arc::clone(&protected_configuration))?;
+        start_http_server(Arc::clone(&protected_configuration))?;
     }
 
     // Start the updater thread

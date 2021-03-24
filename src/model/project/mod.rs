@@ -10,11 +10,12 @@ use self::{
     branch::Branch
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Project {
     pub url: String,
     pub procedures: Vec<Procedure>,
     pub branches: Vec<Branch>,
+    pub persistent: bool
 }
 
 impl Project {

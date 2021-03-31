@@ -1,7 +1,7 @@
 use std::{
     thread,
     process::ExitStatus,
-    sync::{Arc, RwLock}
+    sync::Arc
 };
 use anyhow::Error;
 use futures::{select, pin_mut, join, future::FutureExt};
@@ -28,7 +28,7 @@ use crate::{
     system_cmd::{setup_git_repository, run_procedure_command}
 };
 
-pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Procedure, procedure_thread_connection: Arc<RwLock<ThreadProcedureConnection>>) -> Result<(), Error> {
+pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Procedure, procedure_thread_connection: Arc<ThreadProcedureConnection>) -> Result<(), Error> {
     let repository_name: String = setup_git_repository(&project.url, procedure.deploy_path.as_ref().unwrap(), &branch.name)?;
     let path = format!("{}/{}/{}", procedure.deploy_path.as_ref().unwrap(), repository_name, branch.name);
     let commands: Vec<String> = procedure.commands.clone();
@@ -68,8 +68,7 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
                 }
     
                 // Blocks the thread until the child process running the command has exited
-                let read_connection = procedure_thread_connection.read().unwrap();
-                let child_result = runtime.block_on(manage_child(&mut child_process, &read_connection));
+                let child_result = runtime.block_on(manage_child(&mut child_process, Arc::clone(&procedure_thread_connection)));
                 if !child_result.0 {
                     if let Some(exit_code) = child_result.1 {
                         let should_restart = match &procedure_restart_policy {
@@ -84,7 +83,7 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
                                 Ok(()) => (),
                                 Err(_e) => warn!(format!("[{}] Unable to kill child process. It may already be dead.", procedure_name))
                             };
-                            info!(format!("[{}] Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_name, read_connection.remote_url, read_connection.branch, read_connection.procedure_name));
+                            info!(format!("[{}] Skipping the remaining commands for project (URL: {}) on branch {} in procedure {}", procedure_name, procedure_thread_connection.remote_url, procedure_thread_connection.branch, procedure_thread_connection.procedure_name));
                             success = false;
                             break;
                         }
@@ -115,7 +114,7 @@ pub fn run_project_procedure(project: &Project, branch: &Branch, procedure: &Pro
 /// Manages a child and returns a future with the result
 /// Result.0 is if the command was successful
 /// Result.1 is if the command should be rerun
-async fn manage_child(child: &mut Child, connection: &ThreadProcedureConnection) -> (bool, Option<i32>) {
+async fn manage_child(child: &mut Child, connection: Arc<ThreadProcedureConnection>) -> (bool, Option<i32>) {
     let child_completion_future = complete_child(child).fuse();
     let command_exit = process_commands(&connection.owner_channel).fuse();
 
@@ -155,7 +154,7 @@ async fn complete_child(child: &mut Child) -> (bool, i32) {
 /// Processes incoming messages from the updater thread
 /// Future will resolve if a KillProcedure is received
 async fn process_commands(connection: &Channel<Command>) {
-    let rec = &mut connection.receiver.write().unwrap();
+    let rec = &mut connection.receiver.lock().unwrap();
     while let Some(msg) = rec.recv().await {
         if std::mem::discriminant(&msg) == std::mem::discriminant(&Command::KillProcedure) {
             break;

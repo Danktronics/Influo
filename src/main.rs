@@ -2,7 +2,7 @@
 use std::{
     thread,
     time::Duration,
-    sync::{Arc, Mutex, RwLock}
+    sync::{Arc, Mutex}
 };
 use anyhow::Error;
 use serde_json::Value;
@@ -57,12 +57,13 @@ async fn main() -> Result<(), Error> {
     LOGGER.lock().unwrap().set_log_level(configuration.log_level);
 
     let protected_configuration = Arc::new(Mutex::new(configuration));
+    let procedure_thread_connections: Arc<Mutex<Vec<Arc<ThreadProcedureConnection>>>> = Arc::new(Mutex::new(Vec::new()));
 
     #[cfg(feature = "http-api")]
-    start_http_server(Arc::clone(&protected_configuration))?;
+    start_http_server(Arc::clone(&protected_configuration), Arc::clone(&procedure_thread_connections))?;
 
     // Start the updater thread
-    let thread_join_handle: thread::JoinHandle<()> = setup_updater_thread(protected_configuration);
+    let thread_join_handle: thread::JoinHandle<()> = setup_updater_thread(protected_configuration, procedure_thread_connections);
     thread_join_handle.join().unwrap();
 
     Ok(())
@@ -70,16 +71,15 @@ async fn main() -> Result<(), Error> {
 
 /// Spawns the updater thread for checking updates and controlling procedures
 /// Interval should be in milliseconds
-fn setup_updater_thread(configuration: Arc<Mutex<Configuration>>) -> thread::JoinHandle<()> {
+fn setup_updater_thread(configuration: Arc<Mutex<Configuration>>, procedure_thread_connections: Arc<Mutex<Vec<Arc<ThreadProcedureConnection>>>>) -> thread::JoinHandle<()> {
     info!("Spawning updater thread");
-
-    let mut procedure_thread_connections: Vec<Arc<RwLock<ThreadProcedureConnection>>> = Vec::new();
 
     thread::spawn(move || {
         loop {
             let interval;
             {
                 let mut configuration = configuration.lock().unwrap();
+                let mut procedure_connections = procedure_thread_connections.lock().unwrap();
                 interval = configuration.update_interval;
                 debug!("Checking project repositories for updates");
                 for project in &mut *configuration.projects {
@@ -106,22 +106,21 @@ fn setup_updater_thread(configuration: Arc<Mutex<Configuration>>) -> thread::Joi
                             }
     
                             // Kill previous procedure process
-                            for unlocked_procedure_thread_connection in &procedure_thread_connections {
-                                let procedure_thread_connection = &unlocked_procedure_thread_connection.read().unwrap();
+                            for unlocked_procedure_thread_connection in &*procedure_connections {
+                                let procedure_thread_connection = &unlocked_procedure_thread_connection;
                                 if procedure_thread_connection.remote_url == project.url && procedure_thread_connection.branch == branch.name && procedure_thread_connection.procedure_name == procedure.name {
                                     info!(format!("[{}] Found previous running version. Attempting to send kill message", procedure.name));
-                                    let sen = &procedure_thread_connection.owner_channel.sender.read().unwrap();
-                                    sen.send(Command::KillProcedure).expect("Failed to send kill command!");
+                                    procedure_thread_connection.owner_channel.sender.send(Command::KillProcedure).expect("Failed to send kill command!");
                                     // TODO: Wait for response/timeout
                                 }
                             }
     
                             // Insert new connection
-                            procedure_thread_connections.push(Arc::new(RwLock::new(ThreadProcedureConnection::new(project.url.clone(), branch.name.clone(), procedure.name.clone()))));
-                            let procedure_connection = procedure_thread_connections.last_mut().unwrap();
+                            let procedure_connection = Arc::new(ThreadProcedureConnection::new(project.url.clone(), branch.name.clone(), procedure.name.clone()));
+                            procedure_connections.push(Arc::clone(&procedure_connection));
     
                             // Run procedure
-                            run_project_procedure(&project, &branch, &procedure, Arc::clone(&procedure_connection)).expect("Procedure failed due to a git error!");
+                            run_project_procedure(&project, &branch, &procedure, procedure_connection).expect("Procedure failed due to a git error!");
                         }
                     }
                     project.update_branches(branches);

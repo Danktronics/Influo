@@ -9,7 +9,7 @@ use route_recognizer::{Router, Params};
 use anyhow::anyhow;
 
 use crate::model::{Configuration, project::Project};
-use crate::model::channel::ThreadProcedureConnection;
+use crate::model::channel::ProcedureConnection;
 use crate::filesystem::{write_configuration};
 
 enum RouterRoute {
@@ -60,14 +60,30 @@ async fn api_get_project(_request: Request<Body>, url_params: &Params, configura
         Ok(project_url) => {
             match configuration.projects.iter().find(|p| p.url == project_url) {
                 Some(project) => Ok(create_api_response_body(StatusCode::OK, Body::from(serde_json::to_string(&project)?))),
-                None => Ok(create_api_response_body(StatusCode::BAD_REQUEST, r#"{"error": "Unknown Project"}"#.into()))
+                None => Ok(create_api_response_body(StatusCode::NOT_FOUND, r#"{"error": "Unknown Project"}"#.into()))
             }
         },
         Err(_error) => Ok(create_api_response_body(StatusCode::BAD_REQUEST, r#"{"error": "Invalid Base 64 Project URL"}"#.into()))
     }
 }
 
-async fn root_handle_request(request: Request<Body>, router: Arc<Router<RouterRoute>>, configuration: Arc<Mutex<Configuration>>, procedure_connections: Arc<Mutex<Vec<Arc<ThreadProcedureConnection>>>>) -> Result<Response<Body>, anyhow::Error> {
+async fn api_delete_project(_request: Request<Body>, url_params: &Params, configuration: Arc<Mutex<Configuration>>, procedure_connections: Arc<Mutex<Vec<ProcedureConnection>>>) -> Result<Response<Body>, anyhow::Error> {
+    let configuration = &*configuration.lock().unwrap();
+
+    match base64_decode(url_params.find("project_url").unwrap()) {
+        Ok(project_url) => {
+            match configuration.projects.iter().find(|p| p.url == project_url) {
+                Some(project) => {
+                    unimplemented!()
+                },
+                None => Ok(create_api_response_body(StatusCode::NOT_FOUND, r#"{"error": "Unknown Project"}"#.into()))
+            }
+        },
+        Err(_error) => Ok(create_api_response_body(StatusCode::BAD_REQUEST, r#"{"error": "Invalid Base 64 Project URL"}"#.into()))
+    }
+}
+
+async fn root_handle_request(request: Request<Body>, router: Arc<Router<RouterRoute>>, configuration: Arc<Mutex<Configuration>>, procedure_connections: Arc<Mutex<Vec<ProcedureConnection>>>) -> Result<Response<Body>, anyhow::Error> {
     debug!(format!("Request received: {} \"{}\"", request.method(), request.uri().path()));
 
     match router.recognize(request.uri().path()) {
@@ -83,6 +99,7 @@ async fn root_handle_request(request: Request<Body>, router: Arc<Router<RouterRo
                 RouterRoute::Project => {
                     match *request.method() {
                         Method::GET => api_get_project(request, route_match.params(), configuration).await,
+                        Method::DELETE => api_delete_project(request, route_match.params(), configuration, procedure_connections).await,
                         _ => Ok(create_api_response_body(StatusCode::NOT_FOUND, r#"{"error": "Not Found"}"#.into()))
                     }
                 }
@@ -92,7 +109,7 @@ async fn root_handle_request(request: Request<Body>, router: Arc<Router<RouterRo
     }
 }
 
-pub fn start_http_server(configuration: Arc<Mutex<Configuration>>, procedure_connections: Arc<Mutex<Vec<Arc<ThreadProcedureConnection>>>>) -> Result<(), anyhow::Error> {
+pub fn start_http_server(configuration: Arc<Mutex<Configuration>>, procedure_connections: Arc<Mutex<Vec<ProcedureConnection>>>) -> Result<(), anyhow::Error> {
     let port;
     match &configuration.lock().unwrap().api {
         Some(api) => match &api.http {

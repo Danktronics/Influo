@@ -1,17 +1,18 @@
 use lazy_static::lazy_static;
 use std::sync::Mutex;
+use serde::{Serialize, Deserialize};
 
 lazy_static! {
     pub static ref LOGGER: Mutex<Logger> = Mutex::new(Logger::new(LogLevel::Warn));
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum LogLevel {
-    Unknown = 0,
-    Error = 1,
-    Warn = 2,
-    Info = 3,
-    Debug = 4,
+    Error = 0,
+    Warn = 1,
+    Info = 2,
+    Debug = 3
 }
 
 pub struct Logger {
@@ -36,34 +37,18 @@ impl Logger {
         }
 
         let level: &str = if log_level_num == 0 {
-            "UNKNOWN"
-        } else if log_level_num == 1 {
             "ERROR"
-        } else if log_level_num == 2 {
+        } else if log_level_num == 1 {
             "WARN"
-        } else if log_level_num == 3 {
+        } else if log_level_num == 2 {
             "INFO"
-        } else if log_level_num == 4 {
+        } else if log_level_num == 3 {
             "DEBUG"
         } else {
             "OTHER"
         };
 
         println!("[{}] {}", level, msg);
-    }
-
-    pub fn string_to_log_level(str_level: &str) -> LogLevel {
-        if str_level == "error" {
-            LogLevel::Error
-        } else if str_level == "warn" {
-            LogLevel::Warn
-        } else if str_level == "info" {
-            LogLevel::Info
-        } else if str_level == "debug" {
-            LogLevel::Debug
-        } else {
-            LogLevel::Unknown
-        }
     }
 }
 

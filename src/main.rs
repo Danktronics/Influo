@@ -24,7 +24,7 @@ use model::{
 };
 use system_cmd::get_remote_git_repository_commits;
 use procedure_manager::run_project_procedure;
-use logger::{LOGGER};
+use logger::LOGGER;
 use filesystem::read_configuration;
 
 #[cfg(feature = "http-api")]

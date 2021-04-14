@@ -54,12 +54,6 @@ async fn main() -> Result<(), Error> {
         
         for pipeline in &mut project.pipelines {
             pipeline.persistent = true;
-
-            for (name, procedures) in &mut pipeline.procedures {
-                for procedure in procedures {
-                    procedure.persistent = true;
-                }
-            }
         }
     }
 
@@ -111,14 +105,14 @@ async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_threa
                                             for pipeline_connection in &*pipeline_connections {
                                                 if pipeline_connection.remote_url == project.url && pipeline_connection.branch_name == branch.name && pipeline_connection.pipeline_name == pipeline.name {
                                                     info!(format!("[{}] Found previous running version. Attempting to send kill message", pipeline.name));
-                                                    if let Err(_) = pipeline_connection.send(Command::KillProcedure) {
+                                                    if pipeline_connection.send(Command::KillProcedure).is_err() {
                                                         error!(format!("[{}] Attempted to kill previous pipeline task, but failed. Continuing anyway.", pipeline.name));
                                                     }
                                                     // TODO: Wait for response/timeout
                                                 }
                                             }
                 
-                                            if pipeline.stages.len() > 0 {
+                                            if !pipeline.stages.is_empty() {
                                                 let (pipeline_connection, mut receiver) = PipelineConnection::new(project.url.clone(), branch.name.clone(), pipeline.name.clone());
                                                 pipeline_connections.push(pipeline_connection);
                                                 let default_deploy_path = configuration.default_deploy_path.clone();

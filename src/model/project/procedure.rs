@@ -12,9 +12,7 @@ pub struct Procedure {
     pub commands: Vec<String>,
     pub condition: Condition,
     pub auto_restart: AutoRestartPolicy,
-    pub log_template: Option<String>,
-    #[serde(default)]
-    pub persistent: bool
+    pub log_template: Option<String>
 }
 
 #[derive(Debug, Clone)]

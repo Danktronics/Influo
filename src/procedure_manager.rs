@@ -1,6 +1,5 @@
 use std::process::ExitStatus;
 use std::sync::Arc;
-use anyhow::Error;
 use futures::future::FutureExt;
 use tokio::{
     select, pin, join,
@@ -12,6 +11,7 @@ use chrono::Utc;
 
 use crate::{
     constants::DEFAULT_LOG_TEMPLATE,
+    error::ProcedureError,
     model::{
         project::{
             pipeline::Pipeline,
@@ -22,11 +22,11 @@ use crate::{
     system_cmd::run_procedure_command
 };
 
-pub async fn run_procedure(path: Arc<String>, pipeline: Arc<Pipeline>, stage_index: usize, branch_index: usize, procedure: Procedure, mut procedure_receiver: UnboundedReceiver<Command>) -> Result<(), Error> {
+// TODO: Update Influo logging (currently panics if no procedure name)
+pub async fn run_procedure(path: Arc<String>, pipeline: Arc<Pipeline>, stage_index: usize, branch_index: usize, procedure: Procedure, mut procedure_receiver: UnboundedReceiver<Command>) -> Result<(), ProcedureError> {
     let procedure = Arc::new(procedure);
     
     if !procedure.commands.is_empty() {
-        let mut success = true;
         let mut current_command_index = 0;
         loop {
             let command = &procedure.commands[current_command_index];
@@ -59,10 +59,13 @@ pub async fn run_procedure(path: Arc<String>, pipeline: Arc<Pipeline>, stage_ind
             if !child_result.0 {
                 if let Some(exit_code) = child_result.1 {
                     let should_restart = match &procedure.auto_restart {
-                        AutoRestartPolicy::Always => true,
-                        AutoRestartPolicy::Never => false,
-                        AutoRestartPolicy::ExclusionCodes(excluded_codes) => !excluded_codes.contains(&exit_code),
-                        AutoRestartPolicy::InclusionCodes(included_codes) => included_codes.contains(&exit_code)
+                        Some(auto_restart) => match auto_restart {
+                            AutoRestartPolicy::Always => true,
+                            AutoRestartPolicy::Never => false,
+                            AutoRestartPolicy::ExclusionCodes(excluded_codes) => !excluded_codes.contains(&exit_code),
+                            AutoRestartPolicy::InclusionCodes(included_codes) => included_codes.contains(&exit_code)
+                        },
+                        None => false
                     };
                     
                     if !should_restart {
@@ -71,13 +74,11 @@ pub async fn run_procedure(path: Arc<String>, pipeline: Arc<Pipeline>, stage_ind
                             Err(_e) => warn!(format!("[{}] Unable to kill child process. It may already be dead.", procedure.name.as_ref().unwrap()))
                         };
                         info!(format!("[{}] Skipping the remaining commands for project on branch {} in procedure {}", procedure.name.as_ref().unwrap(), pipeline.branches[branch_index], procedure.name.as_ref().unwrap()));
-                        success = false;
-                        break;
+                        return Err(ProcedureError::ChildKillFail);
                     }
                 } else {
                     error!(format!("[{}] Encountered unsuccessful child response with missing exit code", procedure.name.as_ref().unwrap()));
-                    success = false;
-                    break;
+                    return Err(ProcedureError::ChildEndMissingCloseCode);
                 }
             } else {
                 current_command_index += 1;
@@ -88,11 +89,7 @@ pub async fn run_procedure(path: Arc<String>, pipeline: Arc<Pipeline>, stage_ind
             }
         }
         
-        if success {
-            info!(format!("[{}] Work completed successfully!", procedure.name.as_ref().unwrap()));
-        } else {
-            warn!(format!("[{}] Work did not complete.", procedure.name.as_ref().unwrap()));
-        }
+        info!(format!("[{}] Work completed successfully!", procedure.name.as_ref().unwrap()));
     }
 
     Ok(())

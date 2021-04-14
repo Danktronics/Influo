@@ -11,7 +11,7 @@ pub struct Procedure {
     pub name: Option<String>,
     pub commands: Vec<String>,
     pub condition: Condition,
-    pub auto_restart: AutoRestartPolicy,
+    pub auto_restart: Option<AutoRestartPolicy>,
     pub log_template: Option<String>
 }
 

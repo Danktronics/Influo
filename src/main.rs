@@ -12,6 +12,7 @@ use tokio::sync::mpsc::unbounded_channel;
 
 // Project Modules
 mod constants;
+mod error;
 #[macro_use]
 mod logger;
 mod model;
@@ -122,27 +123,38 @@ async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_threa
                                                 tokio::task::spawn(async move {
                                                     if let Ok(path) = setup_git_repository(&project_url, pipeline.deploy_path.as_ref().unwrap_or(&default_deploy_path), &pipeline.name, &pipeline.branches[branch_index]).await {
                                                         let path = Arc::new(path);
-                                                        for (stage_index, stage) in pipeline.stages.iter().enumerate() {
+                                                        'stage_loop: for (stage_index, stage) in pipeline.stages.iter().enumerate() {
                                                             if let Some(procedures) = Arc::clone(&pipeline).procedures.get(stage) {        
                                                                 let mut procedures_connection = HashMap::new();
                                                                 let mut procedures_future = Vec::new();
                                                                 for procedure in procedures {
                                                                     let (sender, receiver) = unbounded_channel();
-                                                                    procedures_connection.insert(procedure.name.clone().unwrap(), sender);
-                                                                    let procedure_future = run_procedure(Arc::clone(&path), Arc::clone(&pipeline), branch_index, stage_index, procedure.clone(), receiver);
+                                                                    let connection_id = match &procedure.name {
+                                                                        Some(procedure_name) => procedure_name.clone(),
+                                                                        None => pipeline.name.clone()
+                                                                    };
+
+                                                                    procedures_connection.insert(connection_id, sender);
+                                                                    let procedure_future = run_procedure(Arc::clone(&path), Arc::clone(&pipeline), stage_index, branch_index, procedure.clone(), receiver);
                                                                     procedures_future.push(tokio::task::spawn(async move {
-                                                                        procedure_future.await; // TODO: Possibly handle Result (which is useless for now)
+                                                                        procedure_future.await
                                                                     }));
                                                                 }
                     
                                                                 select! {
-                                                                    _ = join_all(procedures_future) => {
-                                                                        info!(format!("[{}] Pipeline finished all stages.", pipeline.name));
+                                                                    procedure_results = join_all(procedures_future) => {
+                                                                        for result in procedure_results {
+                                                                            if result.is_err() || result.unwrap().is_err() {
+                                                                                break 'stage_loop;
+                                                                            }
+                                                                        }
+
+                                                                        info!(format!("[{}] [{}] Pipeline finished stage.", pipeline.name, stage));
                                                                     },
                                                                     Some(command) = receiver.recv() => {
                                                                         match command {
                                                                             Command::KillProcedure => {
-                                                                                debug!(format!("[{}] Pipeline kill command received. Dropping connections and ending task.", pipeline.name));
+                                                                                debug!(format!("[{}] Pipeline kill command received. Dropping connections and ending task(s).", pipeline.name));
                                                                                 break; // TODO: Re-evaluate sending command as dropping has same functionality
                                                                             }
                                                                         }
@@ -152,6 +164,8 @@ async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_threa
                                                                 error!(format!("[{}] Missing stage configuration! Stage: {}", pipeline.name, stage));
                                                             }
                                                         }
+
+                                                        info!(format!("[{}] Pipeline finished.", pipeline.name));
                                                     } else {
                                                         error!(format!("[{}] Failed to setup git repository. Skipping pipeline.", pipeline.name));
                                                     }

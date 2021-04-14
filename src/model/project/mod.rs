@@ -1,17 +1,18 @@
 use serde::{Serialize, Deserialize};
 
+pub mod pipeline;
 pub mod procedure;
 pub mod branch;
 
 use self::{
-    procedure::Procedure,
+    pipeline::Pipeline,
     branch::Branch
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Project {
     pub url: String,
-    pub procedures: Vec<Procedure>,
+    pub pipelines: Vec<Pipeline>,
     #[serde(skip)]
     pub branches: Vec<Branch>,
     #[serde(default)]

@@ -18,7 +18,7 @@ mod logger;
 mod model;
 mod system_cmd;
 mod procedure_manager;
-mod filesystem;
+mod util;
 
 #[cfg(feature = "http-api")]
 mod api;
@@ -32,7 +32,7 @@ use model::{
 use system_cmd::{get_remote_git_repository_commits, setup_git_repository};
 use procedure_manager::run_procedure;
 use logger::LOGGER;
-use filesystem::read_configuration;
+use util::filesystem::read_configuration;
 
 #[cfg(feature = "http-api")]
 use api::http::start_http_server;
@@ -84,7 +84,7 @@ async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_threa
             interval = configuration.update_interval;
             debug!("Checking project repositories for updates");
             for project_index in 0..configuration.projects.len() {
-                let mut possible_new_branches = None;
+                let possible_new_branches;
                 {
                     let project = &configuration.projects[project_index];
                     
@@ -99,6 +99,7 @@ async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_threa
                                 }
             
                                 info!(format!("Updating to commit {} in the {} branch...", short_hash, branch.name));
+                                let short_hash = Arc::new(short_hash);
                                 for pipeline in &project.pipelines {
                                     if let Some(branch_index) = pipeline.branches.iter().position(|b| *b == branch.name) {
                                         if pipeline.condition == Condition::Automatic {
@@ -119,14 +120,17 @@ async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_threa
                                                 let default_deploy_path = configuration.default_deploy_path.clone();
                                                 let project_url = project.url.clone();
                                                 let pipeline = Arc::new(pipeline.clone());
+                                                let short_hash = Arc::clone(&short_hash);
+                                                let default_log_path = configuration.default_log_path.clone(); // TODO: Revisit possible unnecessary clone (along with all its uses)
                 
                                                 tokio::task::spawn(async move {
-                                                    if let Ok(path) = setup_git_repository(&project_url, pipeline.deploy_path.as_ref().unwrap_or(&default_deploy_path), &pipeline.name, &pipeline.branches[branch_index]).await {
+                                                    if let Ok((path, repository_name)) = setup_git_repository(&project_url, pipeline.deploy_path.as_ref().unwrap_or(&default_deploy_path), &pipeline.name, &pipeline.branches[branch_index]).await {
                                                         let path = Arc::new(path);
-                                                        'stage_loop: for (stage_index, stage) in pipeline.stages.iter().enumerate() {
+                                                        let default_log_path = Arc::new(format!("{}/{}", default_log_path, repository_name));
+                                                        for (stage_index, stage) in pipeline.stages.iter().enumerate() {
                                                             if let Some(procedures) = Arc::clone(&pipeline).procedures.get(stage) {        
                                                                 let mut procedures_connection = HashMap::new();
-                                                                let mut procedures_future = Vec::new();
+                                                                let mut procedures_handle = Vec::new();
                                                                 for procedure in procedures {
                                                                     let (sender, receiver) = unbounded_channel();
                                                                     let connection_id = match &procedure.name {
@@ -135,17 +139,15 @@ async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_threa
                                                                     };
 
                                                                     procedures_connection.insert(connection_id, sender);
-                                                                    let procedure_future = run_procedure(Arc::clone(&path), Arc::clone(&pipeline), stage_index, branch_index, procedure.clone(), receiver);
-                                                                    procedures_future.push(tokio::task::spawn(async move {
-                                                                        procedure_future.await
-                                                                    }));
+                                                                    let procedure_future = run_procedure(Arc::clone(&path), Arc::clone(&pipeline), stage_index, branch_index, Arc::clone(&short_hash), procedure.clone(), Arc::clone(&default_log_path), receiver);
+                                                                    procedures_handle.push(tokio::task::spawn(procedure_future));
                                                                 }
-                    
+
                                                                 select! {
-                                                                    procedure_results = join_all(procedures_future) => {
+                                                                    procedure_results = join_all(procedures_handle) => {
                                                                         for result in procedure_results {
                                                                             if result.is_err() || result.unwrap().is_err() {
-                                                                                break 'stage_loop;
+                                                                                return;
                                                                             }
                                                                         }
 
@@ -155,6 +157,11 @@ async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_threa
                                                                         match command {
                                                                             Command::KillProcedure => {
                                                                                 debug!(format!("[{}] Pipeline kill command received. Dropping connections and ending task(s).", pipeline.name));
+                                                                                for (connection_id, sender) in &procedures_connection {
+                                                                                    if sender.send(Command::KillProcedure).is_err() {
+                                                                                        error!(format!("[{}] Pipeline failed to kill procedure with ID: {}. Continuing anyway.", pipeline.name, connection_id));
+                                                                                    }
+                                                                                }
                                                                                 break; // TODO: Re-evaluate sending command as dropping has same functionality
                                                                             }
                                                                         }

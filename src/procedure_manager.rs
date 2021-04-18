@@ -1,8 +1,11 @@
 use std::process::ExitStatus;
 use std::sync::Arc;
+use std::fs;
+use std::fs::OpenOptions;
+use std::io::Write;
 use futures::future::FutureExt;
 use tokio::{
-    select, pin, join,
+    select, pin,
     process::{Child, ChildStdout, ChildStderr},
     io::{BufReader, AsyncBufReadExt},
     sync::mpsc::UnboundedReceiver
@@ -23,7 +26,16 @@ use crate::{
 };
 
 // TODO: Update Influo logging (currently panics if no procedure name)
-pub async fn run_procedure(path: Arc<String>, pipeline: Arc<Pipeline>, stage_index: usize, branch_index: usize, procedure: Procedure, mut procedure_receiver: UnboundedReceiver<Command>) -> Result<(), ProcedureError> {
+pub async fn run_procedure(
+    path: Arc<String>,
+    pipeline: Arc<Pipeline>,
+    stage_index: usize,
+    branch_index: usize,
+    commit_hash: Arc<String>,
+    procedure: Procedure,
+    default_log_path: Arc<String>,
+    mut procedure_receiver: UnboundedReceiver<Command>
+) -> Result<(), ProcedureError> {
     let procedure = Arc::new(procedure);
     
     if !procedure.commands.is_empty() {
@@ -45,13 +57,11 @@ pub async fn run_procedure(path: Arc<String>, pipeline: Arc<Pipeline>, stage_ind
                 let procedure = Arc::clone(&procedure);
                 let path = Arc::clone(&path);
                 let pipeline = Arc::clone(&pipeline);
+                let commit_hash = Arc::clone(&commit_hash);
+                let default_log_path = Arc::clone(&default_log_path);
                 
-                tokio::task::spawn(async move {
-                    join!(
-                        read_stdout(BufReader::new(stdout), Arc::clone(&procedure), Arc::clone(&path), Arc::clone(&pipeline), stage_index, current_command_index),
-                        read_stderr(BufReader::new(stderr), procedure, path, pipeline, stage_index, current_command_index)
-                    );
-                });
+                // TODO: Revisit re-initializing log read every command
+                tokio::task::spawn(read_standard_streams(BufReader::new(stdout), BufReader::new(stderr), procedure, path, pipeline, stage_index, current_command_index, branch_index, commit_hash, default_log_path));
             }
 
             // Blocks until the child process running the command has exited
@@ -146,10 +156,18 @@ async fn process_commands(procedure_receiver: &mut UnboundedReceiver<Command>) {
     }
 }
 
-// TODO: Possibly combine read_stdout and read_stderr for less code duplication
-// STDOUT logging
-async fn read_stdout(stdout_buffer: BufReader<ChildStdout>, procedure: Arc<Procedure>, path: Arc<String>, pipeline: Arc<Pipeline>, stage_index: usize, command_index: usize) {
-    // TODO: Rewrite to be more idiomatic?
+async fn read_standard_streams(
+    stdout_buffer: BufReader<ChildStdout>,
+    stderr_buffer: BufReader<ChildStderr>,
+    procedure: Arc<Procedure>,
+    path: Arc<String>,
+    pipeline: Arc<Pipeline>,
+    stage_index: usize,
+    command_index: usize,
+    branch_index: usize,
+    commit_hash: Arc<String>,
+    default_log_path: Arc<String>
+) {
     if pipeline.log.is_some() && pipeline.log.as_ref().unwrap().is_enabled() {
         let log_template = if let Some(ref log_template) = procedure.log_template {
             log_template.clone()
@@ -160,44 +178,71 @@ async fn read_stdout(stdout_buffer: BufReader<ChildStdout>, procedure: Arc<Proce
         };
 
         let mut stdout_reader = stdout_buffer.lines();
-        while let Some(line) = stdout_reader.next_line().await.unwrap() {
-            let out: String = log_template
-                .replace("{pipeline_name}", &pipeline.name)
-                .replace("{pipeline_stage}", &pipeline.stages[stage_index])
-                .replace("{time}", &Utc::now().format("%H:%M:%S").to_string()) // %H:%M:%S can be shortened to %T but that's fine. Additionally, %r will give formatted 12 hour time.
-                .replace("{path}", &path)
-                .replace("{command}", &procedure.commands[command_index])
-                .replace("{message}", &line);
-            info!(out);
-        }
-    } else {
-        error!("read_stdout called without log_template");
-    }
-}
-
-// STDERR logging
-async fn read_stderr(stderr_buffer: BufReader<ChildStderr>, procedure: Arc<Procedure>, path: Arc<String>, pipeline: Arc<Pipeline>, stage_index: usize, command_index: usize) {
-    if pipeline.log.is_some() && pipeline.log.as_ref().unwrap().is_enabled() {
-        let log_template = if let Some(ref log_template) = procedure.log_template {
-            log_template.clone()
-        } else if let Some(ref log_template) = pipeline.log.as_ref().unwrap().template {
-            log_template.clone()
-        } else {
-            DEFAULT_LOG_TEMPLATE.to_owned()
-        };
-
         let mut stderr_reader = stderr_buffer.lines();
-        while let Some(line) = stderr_reader.next_line().await.unwrap() {
-            let out: String = log_template
+
+        enum StreamType {
+            Stdout,
+            Stderr
+        }
+
+        let mut file_log_stream = None;
+        if let Some(ref log) = pipeline.log {
+            if log.save_to_file.unwrap_or(false) {
+                let formatted_date = Utc::now().format("%Y%m%d").to_string();
+                let path = if let Some(ref path) = log.file_path {
+                    format!("{}/{}", path, &pipeline.branches[branch_index])
+                } else {
+                    format!("{}/{}/{}", default_log_path, &pipeline.name, &pipeline.branches[branch_index])
+                };
+                fs::create_dir_all(&path); // TODO: Handle results
+
+                let file_stream = OpenOptions::new().append(true).create(true).open(format!("{}/{}_{}.log", path, commit_hash, formatted_date)); // TODO: More unique log file name
+                if let Ok(file) = file_stream {
+                    file_log_stream = Some(file);
+                }
+            }
+        }
+
+        loop {
+            let stream_type;
+            let stream_data;
+
+            select! {
+                Ok(Some(line)) = stdout_reader.next_line() => {
+                    stream_type = StreamType::Stdout;
+                    stream_data = line;
+                },
+                Ok(Some(line)) = stderr_reader.next_line() => {
+                    stream_type = StreamType::Stderr;
+                    stream_data = line;
+                },
+                else => break
+            }
+
+            let log = log_template
                 .replace("{pipeline_name}", &pipeline.name)
                 .replace("{pipeline_stage}", &pipeline.stages[stage_index])
+                // TODO: Time since procedure start
                 .replace("{time}", &Utc::now().format("%H:%M:%S").to_string()) // %H:%M:%S can be shortened to %T but that's fine. Additionally, %r will give formatted 12 hour time.
                 .replace("{path}", &path)
                 .replace("{command}", &procedure.commands[command_index])
-                .replace("{message}", &line);
-            error!(out);
+                .replace("{message}", &stream_data);
+
+            if pipeline.log.as_ref().unwrap().console.unwrap_or(false) {
+                match stream_type {
+                    StreamType::Stdout => info!(log),
+                    StreamType::Stderr => error!(log)
+                }
+            }
+
+            if let Some(ref mut file_stream) = file_log_stream {
+                if let Err(error) = writeln!(file_stream, "{}", log) {
+                    error!(format!("[{}] [{}] Failed to save log to file. Closing stream and aborting file logging. Error: {}", pipeline.name, pipeline.stages[stage_index], error));
+                    file_log_stream = None;
+                }
+            }
         }
     } else {
-        error!("read_stderr called without log_template");
+        error!("read_standard_streams called without log_template");
     }
 }

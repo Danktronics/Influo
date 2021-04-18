@@ -54,7 +54,7 @@ pub async fn get_remote_git_repository_commits(remote_url: &str) -> Result<Vec<B
     Ok(branches)
 }
 
-pub async fn setup_git_repository(remote_url: &str, pipeline_deploy_path: &str, pipeline_name: &str, branch: &str) -> Result<String, Error> {
+pub async fn setup_git_repository(remote_url: &str, pipeline_deploy_path: &str, pipeline_name: &str, branch: &str) -> Result<(String, String), Error> {
     // Download or update repository
     let regex_pattern = Regex::new(r"^(https|git)(://|@)([^/:]+)[/:]([^/:]+)/([^.]*)[.git]*?$").unwrap();
     let possible_captures = regex_pattern.captures(remote_url);
@@ -85,7 +85,7 @@ pub async fn setup_git_repository(remote_url: &str, pipeline_deploy_path: &str, 
         }
     }
 
-    Ok(format!("{}/{}", pipeline_path, branch))
+    Ok((format!("{}/{}", pipeline_path, branch), repository_name.to_string()))
 }
 
 /// Special system command runner for long running children

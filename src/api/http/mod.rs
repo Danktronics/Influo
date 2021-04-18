@@ -10,7 +10,7 @@ use anyhow::anyhow;
 
 use crate::model::{Configuration, project::Project};
 use crate::model::channel::PipelineConnection;
-use crate::filesystem::{write_configuration};
+use crate::util::filesystem::{write_configuration};
 
 enum RouterRoute {
     Projects, // /projects

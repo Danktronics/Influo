@@ -21,6 +21,7 @@ pub struct Log {
     pub template: Option<String>,
     pub console: Option<bool>,
     pub save_to_file: Option<bool>,
+    pub file_path: Option<String>,
     pub in_memory: Option<bool>
 }
 

@@ -203,7 +203,7 @@ async fn read_standard_streams(
 
                 match fs::create_dir_all(&path) {
                     Ok(()) => {
-                        match OpenOptions::new().append(true).create(true).open(format!("{}/{}_{}_{}.log", path, commit_hash, procedure.name.as_ref().unwrap_or(&pipeline.name), formatted_date)) {
+                        match OpenOptions::new().append(true).create(true).open(format!("{}/{}_{}_{}.log", path, commit_hash, procedure.name.as_ref().unwrap_or(&pipeline.name), formatted_date)) { // TODO: Possibly incrementing counter in file name
                             Ok(file) => file_log_stream = Some(file),
                             Err(error) => error!(format!("{} Failed to create log file. Error: {}", log_identifier, error))
                         }

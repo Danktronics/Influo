@@ -25,7 +25,6 @@ use crate::{
     system_cmd::run_procedure_command
 };
 
-// TODO: Update Influo logging (currently panics if no procedure name)
 pub async fn run_procedure(
     path: Arc<String>,
     pipeline: Arc<Pipeline>,

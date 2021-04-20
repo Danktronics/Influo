@@ -67,7 +67,7 @@ pub async fn run_procedure(
             }
 
             // Blocks until the child process running the command has exited
-            let child_result = manage_child(&mut child_process, procedure.name.as_ref().unwrap(), &mut procedure_receiver).await;
+            let child_result = manage_child(&mut child_process, procedure.name.as_ref().unwrap_or(&pipeline.name), &mut procedure_receiver).await;
             if !child_result.0 {
                 if let Some(exit_code) = child_result.1 {
                     let should_restart = match &procedure.auto_restart {

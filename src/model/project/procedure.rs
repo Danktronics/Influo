@@ -4,18 +4,15 @@ use serde::{Serializer, Serialize, Deserialize, Deserializer, de};
 use serde::ser::SerializeStruct;
 use serde::de::{Visitor, MapAccess};
 
+use super::pipeline::Condition;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Procedure {
-    pub name: String,
+    pub name: Option<String>,
     pub commands: Vec<String>,
-    pub environment: String,
-    pub condition: String,
-    pub deploy_path: Option<String>,
-    pub auto_restart: AutoRestartPolicy,
-    pub branches: Vec<String>,
-    pub log: Option<String>,
-    #[serde(default)]
-    pub persistent: bool
+    pub condition: Condition,
+    pub auto_restart: Option<AutoRestartPolicy>,
+    pub log_template: Option<String>
 }
 
 #[derive(Debug, Clone)]

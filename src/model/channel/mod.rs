@@ -1,5 +1,5 @@
 use std::sync::Mutex;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel, error::SendError};
 
 pub mod message;
 
@@ -12,21 +12,29 @@ pub struct Channel<T> {
 }
 
 #[derive(Debug)]
-pub struct ProcedureConnection {
+pub struct PipelineConnection {
     pub remote_url: String,
-    pub branch: String,
-    pub procedure_name: String,
-    pub sender: UnboundedSender<Command>, // Channel for the owner thread to send
+    pub branch_name: String,
+    pub pipeline_name: String,
+    sender: UnboundedSender<Command>
 }
 
-impl ProcedureConnection {
-    pub fn new(remote_url: String, branch: String, procedure_name: String) -> (ProcedureConnection, UnboundedReceiver<Command>) {
+impl PipelineConnection {
+    pub fn new(remote_url: String, branch_name: String, pipeline_name: String) -> (PipelineConnection, UnboundedReceiver<Command>) {
         let (sender, receiver) = unbounded_channel();
-        (ProcedureConnection {
+        (PipelineConnection {
             remote_url,
-            branch,
-            procedure_name,
+            branch_name,
+            pipeline_name,
             sender
         }, receiver)
+    }
+
+    pub fn send(&self, command: Command) -> Result<(), SendError<Command>> {
+        self.sender.send(command)
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.sender.is_closed()
     }
 }

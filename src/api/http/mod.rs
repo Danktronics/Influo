@@ -9,8 +9,8 @@ use route_recognizer::{Router, Params};
 use anyhow::anyhow;
 
 use crate::model::{Configuration, project::Project};
-use crate::model::channel::ProcedureConnection;
-use crate::filesystem::{write_configuration};
+use crate::model::channel::PipelineConnection;
+use crate::util::filesystem::{write_configuration};
 
 enum RouterRoute {
     Projects, // /projects
@@ -45,7 +45,7 @@ async fn api_create_project(request: Request<Body>, configuration: Arc<Mutex<Con
 
     if project.persistent {
         let mut persistent_project = project.clone();
-        persistent_project.procedures.retain(|p| p.persistent);
+        persistent_project.pipelines.retain(|p| p.persistent);
         write_configuration(&serde_json::to_value(persistent_project)?)?;
     }
 
@@ -67,14 +67,14 @@ async fn api_get_project(_request: Request<Body>, url_params: &Params, configura
     }
 }
 
-async fn api_delete_project(_request: Request<Body>, url_params: &Params, configuration: Arc<Mutex<Configuration>>, procedure_connections: Arc<Mutex<Vec<ProcedureConnection>>>) -> Result<Response<Body>, anyhow::Error> {
+async fn api_delete_project(_request: Request<Body>, url_params: &Params, configuration: Arc<Mutex<Configuration>>, procedure_connections: Arc<Mutex<Vec<PipelineConnection>>>) -> Result<Response<Body>, anyhow::Error> {
     let configuration = &*configuration.lock().unwrap();
 
     match base64_decode(url_params.find("project_url").unwrap()) {
         Ok(project_url) => {
             match configuration.projects.iter().find(|p| p.url == project_url) {
                 Some(project) => {
-                    unimplemented!()
+                    unimplemented!() // TODO: Implement deleting projects and killing pipelines
                 },
                 None => Ok(create_api_response_body(StatusCode::NOT_FOUND, r#"{"error": "Unknown Project"}"#.into()))
             }
@@ -83,7 +83,7 @@ async fn api_delete_project(_request: Request<Body>, url_params: &Params, config
     }
 }
 
-async fn root_handle_request(request: Request<Body>, router: Arc<Router<RouterRoute>>, configuration: Arc<Mutex<Configuration>>, procedure_connections: Arc<Mutex<Vec<ProcedureConnection>>>) -> Result<Response<Body>, anyhow::Error> {
+async fn root_handle_request(request: Request<Body>, router: Arc<Router<RouterRoute>>, configuration: Arc<Mutex<Configuration>>, procedure_connections: Arc<Mutex<Vec<PipelineConnection>>>) -> Result<Response<Body>, anyhow::Error> {
     debug!(format!("Request received: {} \"{}\"", request.method(), request.uri().path()));
 
     match router.recognize(request.uri().path()) {
@@ -109,7 +109,7 @@ async fn root_handle_request(request: Request<Body>, router: Arc<Router<RouterRo
     }
 }
 
-pub fn start_http_server(configuration: Arc<Mutex<Configuration>>, procedure_connections: Arc<Mutex<Vec<ProcedureConnection>>>) -> Result<(), anyhow::Error> {
+pub fn start_http_server(configuration: Arc<Mutex<Configuration>>, procedure_connections: Arc<Mutex<Vec<PipelineConnection>>>) -> Result<(), anyhow::Error> {
     let port;
     match &configuration.lock().unwrap().api {
         Some(api) => match &api.http {

@@ -1,0 +1,42 @@
+{
+    "update_interval": 30,
+    "log_level": "info",
+    "default_deploy_path": "../test_projects",
+    "default_log_path": "./logs",
+    "api": {
+        "http": {
+            "port": 4200
+        }
+    },
+    "projects": [
+        {
+            "url": "git url",
+            "pipelines": [
+                {
+                    "name": "deploy_production",
+                    "stages": [
+                        "deploy_production"
+                    ],
+                    "environment": "production",
+                    "condition": "automatic",
+                    "branches": [
+                        "master"
+                    ],
+                    "log": {
+                        "template": "[{time}] [{pipeline_name}] [{pipeline_stage}] [{path}] Command ({command}): {message}",
+                        "console": true
+                    },
+                    "procedures": {
+                        "deploy_production": [{
+                            "condition": "automatic",
+                            "auto_restart": {"not": [0]},
+                            "commands": [
+                                "node index.js"
+                            ]
+                        }]
+                    }
+                }
+            ]
+        }
+    ]
+}

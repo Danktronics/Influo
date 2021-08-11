@@ -24,6 +24,11 @@ pub async fn run_pipeline(
     if let Ok((path, repository_name)) = setup_git_repository(&project_url, pipeline.deploy_path.as_ref().unwrap_or(&default_deploy_path), &pipeline.name, &pipeline.branches[branch_index]).await {
         let path = Arc::new(path);
         let default_log_path = Arc::new(format!("{}/{}", default_log_path, repository_name));
+        let stages_iter = match pipeline.stages {
+            Some(stages) => stages.iter(),
+            None => 
+        }
+
         for (stage_index, stage) in pipeline.stages.iter().enumerate() {
             if let Some(procedures) = Arc::clone(&pipeline).procedures.get(stage) {        
                 let mut procedures_connection = HashMap::new();

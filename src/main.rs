@@ -111,7 +111,7 @@ async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_threa
                                                 }
                                             }
                 
-                                            if !pipeline.stages.is_empty() {
+                                            if pipeline.stages.is_none() || !pipeline.stages.unwrap().is_empty() {
                                                 let (pipeline_connection, receiver) = PipelineConnection::new(project.url.clone(), branch.name.clone(), pipeline.name.clone());
                                                 pipeline_connections.push(pipeline_connection);
                                                 let default_deploy_path = configuration.default_deploy_path.clone();

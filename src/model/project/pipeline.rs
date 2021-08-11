@@ -6,7 +6,7 @@ use super::procedure::Procedure;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Pipeline {
     pub name: String,
-    pub stages: Vec<String>,
+    pub stages: Option<Vec<String>>,
     pub branches: Vec<String>,
     pub deploy_path: Option<String>,
     pub log: Option<Log>,

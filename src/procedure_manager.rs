@@ -36,7 +36,7 @@ pub async fn run_procedure(
     mut procedure_receiver: UnboundedReceiver<Command>
 ) -> Result<(), ProcedureError> {
     let procedure = Arc::new(procedure);
-    let log_identifier = format!("[{}] [{}] [{}]", pipeline.name, pipeline.stages[stage_index], procedure.name.as_ref().unwrap_or(&pipeline.name));
+    let log_identifier = format!("[{}] [{}] [{}]", pipeline.name, pipeline.stages_order[stage_index], procedure.name.as_ref().unwrap_or(&pipeline.name));
     let start_time = Arc::new(Utc::now());
     
     if !procedure.commands.is_empty() {
@@ -188,7 +188,7 @@ async fn read_standard_streams(
             Stderr
         }
         
-        let log_identifier = format!("[{}] [{}] [{}] [{}]", pipeline.name, pipeline.stages[stage_index], procedure.name.as_ref().unwrap_or(&pipeline.name), procedure.commands[command_index]);
+        let log_identifier = format!("[{}] [{}] [{}] [{}]", pipeline.name, pipeline.stages_order[stage_index], procedure.name.as_ref().unwrap_or(&pipeline.name), procedure.commands[command_index]);
 
         let mut file_log_stream = None;
         if let Some(ref log) = pipeline.log {
@@ -232,7 +232,7 @@ async fn read_standard_streams(
 
             let log = log_template
                 .replace("{pipeline_name}", &pipeline.name)
-                .replace("{pipeline_stage}", &pipeline.stages[stage_index])
+                .replace("{pipeline_stage}", &pipeline.stages_order[stage_index])
                 .replace("{time}", &format!("{:02}:{:02}:{:02}", duration.num_hours(), duration.num_minutes(), duration.num_seconds()))
                 .replace("{path}", &path)
                 .replace("{command}", &procedure.commands[command_index])

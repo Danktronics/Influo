@@ -1,0 +1,75 @@
+{
+    "update_interval": 30,
+    "log_level": "info",
+    "default_deploy_path": "../Testing/TestProjects",
+    "default_log_path": "../Testing/Logs",
+    "api": {
+        "http": {
+            "port": 4200
+        }
+    },
+    "projects": [
+        {
+            "url": "https://github.com/Danktronics/DanktronicsBot.git",
+            "pipelines": [
+                {
+                    "name": "deploy_production",
+                    "environment": "production",
+                    "condition": "automatic",
+                    "branches": [
+                        "master"
+                    ],
+                    "log": {
+                        "template": "[{time}] [{pipeline_name}] [{pipeline_stage}] [{path}] Command ({command}): {message}",
+                        "console": true
+                    },
+                    "stages": {
+                        "test": {
+                            "name": "test",
+                            "condition": "automatic",
+                            "commands": [
+                                "cargo test"
+                            ]
+                        },
+                        "lint": {
+                            "name": "lint",
+                            "condition": "automatic",
+                            "commands": [
+                                "echo lint"
+                            ]
+                        },
+                        "deploy_staging": {
+                            "name": "deploy_staging",
+                            "condition": "automatic",
+                            "commands": [
+                                "echo deploy_staging"
+                            ]
+                        },
+                        "deploy_production": {
+                            "name": "deploy_production",
+                            "condition": "automatic",
+                            "auto_restart": {"not": [0]},
+                            "commands": [
+                                "echo deploy_production"
+                            ]
+                        },
+                        "cleanup": {
+                            "name": "Cleanup",
+                            "condition": "automatic",
+                            "commands": [
+                                "echo cleanup"
+                            ]
+                        },
+                        "post": {
+                            "name": "post",
+                            "condition": "automatic",
+                            "commands": [
+                                "echo post"
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

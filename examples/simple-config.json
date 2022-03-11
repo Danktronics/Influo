@@ -14,7 +14,7 @@
             "pipelines": [
                 {
                     "name": "deploy_production",
-                    "stages": [
+                    "stages_order": [
                         "deploy_production"
                     ],
                     "environment": "production",
@@ -26,14 +26,17 @@
                         "template": "[{time}] [{pipeline_name}] [{pipeline_stage}] [{path}] Command ({command}): {message}",
                         "console": true
                     },
-                    "procedures": {
-                        "deploy_production": [{
-                            "condition": "automatic",
-                            "auto_restart": {"not": [0]},
-                            "commands": [
-                                "node index.js"
-                            ]
-                        }]
+                    "stages": {
+                        "deploy_production": [
+                            {
+                                "name": "deploy_production",
+                                "condition": "automatic",
+                                "auto_restart": {"not": [0]},
+                                "commands": [
+                                    "node index.js"
+                                ]
+                            }
+                        ]
                     }
                 }
             ]

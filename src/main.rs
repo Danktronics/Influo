@@ -13,8 +13,8 @@ mod error;
 mod logger;
 mod model;
 mod system_cmd;
-mod pipeline_manager;
-mod procedure_manager;
+// mod pipeline_manager;
+// mod procedure_manager;
 mod util;
 
 #[cfg(feature = "http-api")]
@@ -28,8 +28,8 @@ use model::{
 };
 use system_cmd::get_remote_git_repository_commits;
 use logger::LOGGER;
-use pipeline_manager::run_pipeline;
-use util::filesystem::read_configuration;
+// use pipeline_manager::run_pipeline;
+use util::filesystem::read_raw_configuration;
 
 #[cfg(feature = "http-api")]
 use api::http::start_http_server;
@@ -39,13 +39,14 @@ async fn main() -> Result<(), Error> {
     info!("Influo is running!");
 
     // Load Configuration
-    let raw_config: Result<Value, Error> = read_configuration();
+    let raw_config: Result<Value, Error> = read_raw_configuration();
     if let Err(error) = raw_config {
         error!("Configuration not found");
         return Err(error);
     }
 
     let mut configuration: Configuration = serde_json::from_value(raw_config.unwrap())?;
+    println!("{:#?}", configuration);
     // Initially set all projects to be persistent regardless of user settings as the configuration is from the disk
     for project in &mut configuration.projects {
         project.persistent = true;
@@ -64,13 +65,13 @@ async fn main() -> Result<(), Error> {
     start_http_server(Arc::clone(&protected_configuration), Arc::clone(&procedure_thread_connections))?;
 
     // Start the updater
-    setup_updater(protected_configuration, procedure_thread_connections).await;
+    // setup_updater(protected_configuration, procedure_thread_connections).await;
 
     Ok(())
 }
 
-/// Setups the updater for checking updates and controlling procedures
-async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_thread_connections: Arc<Mutex<Vec<PipelineConnection>>>) {
+// Setups the updater for checking updates and controlling procedures
+/*async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_thread_connections: Arc<Mutex<Vec<PipelineConnection>>>) {
     info!("Starting updater");
 
     loop {
@@ -111,7 +112,7 @@ async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_threa
                                                 }
                                             }
                 
-                                            if pipeline.stages.is_none() || !pipeline.stages.unwrap().is_empty() {
+                                            if !pipeline.stages_order.is_empty() {
                                                 let (pipeline_connection, receiver) = PipelineConnection::new(project.url.clone(), branch.name.clone(), pipeline.name.clone());
                                                 pipeline_connections.push(pipeline_connection);
                                                 let default_deploy_path = configuration.default_deploy_path.clone();
@@ -147,4 +148,4 @@ async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_threa
         debug!(format!("Updater thread sleeping for {} seconds", interval));
         tokio::time::sleep(Duration::from_secs(interval as u64)).await;
     }
-}
+}*/

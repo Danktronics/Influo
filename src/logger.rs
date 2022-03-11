@@ -6,7 +6,7 @@ lazy_static! {
     pub static ref LOGGER: Mutex<Logger> = Mutex::new(Logger::new(LogLevel::Warn));
 }
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     Error = 0,

@@ -1,44 +1,73 @@
-use anyhow::{Error, anyhow};
-use serde_json::Value;
+use serde::{Serialize, Deserialize, Deserializer};
 
+pub mod pipeline;
 pub mod procedure;
 pub mod branch;
 
 use self::{
-    procedure::Procedure,
+    pipeline::Pipeline,
     branch::Branch
 };
 
-#[derive(Debug)]
+use self::pipeline::IntermediatePipeline;
+
+use std::convert::TryFrom;
+
+use serde::de;
+
+use serde::de::Unexpected;
+
+use serde::de::Visitor;
+
+use std::fmt;
+
+use serde::de::SeqAccess;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Project {
     pub url: String,
-    pub procedures: Vec<Procedure>,
+    #[serde(deserialize_with = "deserialize_pipeline")]
+    pub pipelines: Vec<Pipeline>,
+    #[serde(skip)]
     pub branches: Vec<Branch>,
+    #[serde(default)]
+    pub persistent: bool
+}
+
+fn deserialize_pipeline<'de, D>(deserializer: D) -> Result<Vec<Pipeline>, D::Error>
+where
+    D: Deserializer<'de>
+{
+    struct PipelinesVisitor;
+
+    impl<'de> Visitor<'de> for PipelinesVisitor {
+        type Value = Vec<Pipeline>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("an array of pipelines")
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: SeqAccess<'de>
+        {
+            let mut pipelines: Vec<Pipeline> = Vec::new();
+
+            while let Some(pipeline) = seq.next_element::<IntermediatePipeline>()? {
+                match Pipeline::try_from(pipeline) {
+                    Ok(pipeline) => pipelines.push(pipeline),
+                    Err(error) => return Err(de::Error::invalid_value(Unexpected::Str(&error), &"a valid stage"))
+                }
+            }
+            
+            Ok(pipelines)
+        }
+    }
+
+    deserializer.deserialize_seq(PipelinesVisitor)
 }
 
 impl Project {
-    pub fn new(raw_project: &Value, raw_default_deploy_path: Option<&Value>) -> Result<Project, Error> {
-        if !raw_project["url"].is_string() {
-            return Err(anyhow!("URL is invalid"));
-        }
-        let url: &str = raw_project["url"].as_str().unwrap();
-
-        if !raw_project["procedures"].is_array() {
-            return Err(anyhow!("Procedures is invalid"));
-        }
-        let raw_procedures_array: &Vec<Value> = raw_project["procedures"].as_array().unwrap();
-        let mut procedures: Vec<Procedure> = Vec::new();
-        for raw_procedure in raw_procedures_array {
-            procedures.push(Procedure::new(raw_procedure, raw_default_deploy_path)?);
-        }
-
-        Ok(Project {
-            url: url.to_string(),
-            procedures: procedures,
-            branches: Vec::new(),
-        })
-    }
-
     pub fn update_branches(&mut self, branches: Vec<Branch>) {
         self.branches = branches;
     }

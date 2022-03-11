@@ -1,136 +1,150 @@
 // Dependencies
 use std::{
-    fs,
-    thread,
     time::Duration,
-    sync::{Arc, Mutex, RwLock}
+    sync::{Arc, Mutex}
 };
-use anyhow::{Error, anyhow};
+use anyhow::Error;
 use serde_json::Value;
 
 // Project Modules
+mod constants;
+mod error;
 #[macro_use]
 mod logger;
 mod model;
 mod system_cmd;
+mod pipeline_manager;
 mod procedure_manager;
+mod util;
+
+#[cfg(feature = "http-api")]
+mod api;
 
 use model::{
-    project::Project,
+    Configuration,
     channel::message::Command,
-    channel::ThreadProcedureConnection
+    channel::PipelineConnection,
+    project::pipeline::Condition
 };
 use system_cmd::get_remote_git_repository_commits;
-use procedure_manager::run_project_procedure;
-use logger::{LOGGER, Logger};
+use logger::LOGGER;
+use pipeline_manager::run_pipeline;
+use util::filesystem::read_raw_configuration;
 
-fn main() -> Result<(), Error> {
+#[cfg(feature = "http-api")]
+use api::http::start_http_server;
+
+#[tokio::main]
+async fn main() -> Result<(), Error> {
     info!("Influo is running!");
 
     // Load Configuration
-    let raw_config: Result<Value, Error> = read_configuration();
-    if raw_config.is_err() {
+    let raw_config: Result<Value, Error> = read_raw_configuration();
+    if let Err(error) = raw_config {
         error!("Configuration not found");
-        return Err(raw_config.err().unwrap());
-    }
-    let config: Value = raw_config.unwrap();
-    if config["log_level"].is_string() {
-        LOGGER.lock().unwrap().set_log_level(Logger::string_to_log_level(&config["log_level"].as_str().unwrap()));
+        return Err(error);
     }
 
-    // Process and cache projects
-    let raw_projects: &Value = &config["projects"];
-    if !raw_projects.is_array() {
-        return Err(anyhow!("Projects is invalid"));
-    }
-    let raw_projects_array: &Vec<Value> = raw_projects.as_array().unwrap();
-    let projects: Arc<Mutex<Vec<Project>>> = Arc::new(Mutex::new(Vec::new()));
-    for raw_project in raw_projects_array {
-        let mut temp_projects = projects.lock().unwrap();
-        temp_projects.push(Project::new(&raw_project, config.get("default_deploy_path"))?);
-    }
-
-    // Retrieve update interval and start the updater thread
-    let raw_update_interval: &Value = &config["update_interval"];
-    let update_interval: u32 = if raw_update_interval.is_null() || !raw_update_interval.is_number() {
-        30
-    } else {
-        let interval: Option<u64> = raw_update_interval.as_u64();
-        if interval.is_none() || interval.unwrap() > std::u32::MAX as u64 {
-            panic!("The integer provided exceeded the u32 max");
+    let mut configuration: Configuration = serde_json::from_value(raw_config.unwrap())?;
+    // Initially set all projects to be persistent regardless of user settings as the configuration is from the disk
+    for project in &mut configuration.projects {
+        project.persistent = true;
+        
+        for pipeline in &mut project.pipelines {
+            pipeline.persistent = true;
         }
-        interval.unwrap() as u32 * 1000
-    };
-    // let updater_communication: ThreadConnection = ThreadConnection::new();
-    let thread_join_handle: thread::JoinHandle<()> = setup_updater_thread(update_interval, projects);
-    thread_join_handle.join().unwrap();
+    }
+
+    LOGGER.lock().unwrap().set_log_level(configuration.log_level);
+
+    let protected_configuration = Arc::new(Mutex::new(configuration));
+    let procedure_thread_connections: Arc<Mutex<Vec<PipelineConnection>>> = Arc::new(Mutex::new(Vec::new()));
+
+    #[cfg(feature = "http-api")]
+    start_http_server(Arc::clone(&protected_configuration), Arc::clone(&procedure_thread_connections))?;
+
+    // Start the updater
+    setup_updater(protected_configuration, procedure_thread_connections).await;
 
     Ok(())
 }
 
-/// Spawns the updater thread for checking updates and controlling procedures
-/// Interval should be in milliseconds
-fn setup_updater_thread(interval: u32, projects: Arc<Mutex<Vec<Project>>>) -> thread::JoinHandle<()> {
-    info!("Spawning updater thread");
+// Setups the updater for checking updates and controlling procedures
+async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_thread_connections: Arc<Mutex<Vec<PipelineConnection>>>) {
+    info!("Starting updater");
 
-    let mut procedure_thread_connections: Vec<Arc<RwLock<ThreadProcedureConnection>>> = Vec::new();
-
-    let updater_projects_ref = Arc::clone(&projects);
-    thread::spawn(move || {
-        let mut unlocked_projects = updater_projects_ref.lock().unwrap();
-        loop {
+    loop {
+        let interval;
+        {
+            let mut configuration = configuration.lock().unwrap();
+            let mut pipeline_connections = procedure_thread_connections.lock().unwrap();
+            interval = configuration.update_interval;
             debug!("Checking project repositories for updates");
-            for project in &mut *unlocked_projects {
-                let query_result = get_remote_git_repository_commits(&project.url);
-                if query_result.is_err() {
-                    error!(format!("Failed to query commits for project with url {} and error:\n{}", project.url, query_result.err().unwrap()));
-                    continue;
-                }
-
-                let branches = query_result.unwrap();
-                for branch in &branches {
-                    let short_hash: String = branch.latest_commit_hash.chars().take(5).collect();
-                    debug!(format!("Current branch is {}. Current short commit hash is {}", branch.name, short_hash));
-                    let branch_search = project.branches.iter().find(|&b| b.name == branch.name);
-                    if branch_search.is_some() && branch_search.unwrap().latest_commit_hash == branch.latest_commit_hash {
-                        continue;
-                    }
-
-                    info!(format!("Updating to commit {} in the {} branch...", short_hash, branch.name));
-                    for procedure in &project.procedures {
-                        let branch_in_procedure = procedure.branches.iter().find(|&b| *b == branch.name);
-                        if branch_in_procedure.is_none() {
+            for project_index in 0..configuration.projects.len() {
+                let possible_new_branches;
+                {
+                    let project = &configuration.projects[project_index];
+                    
+                    match get_remote_git_repository_commits(&project.url).await {
+                        Ok(branches) => {
+                            for branch in &branches {
+                                let short_hash: String = branch.latest_commit_hash.chars().take(5).collect();
+                                debug!(format!("Current branch is {}. Current short commit hash is {}", branch.name, short_hash));
+                                let branch_search = project.branches.iter().find(|&b| b.name == branch.name);
+                                if branch_search.is_some() && branch_search.unwrap().latest_commit_hash == branch.latest_commit_hash {
+                                    continue;
+                                }
+            
+                                info!(format!("Updating to commit {} in the {} branch...", short_hash, branch.name));
+                                let short_hash = Arc::new(short_hash);
+                                for pipeline in &project.pipelines {
+                                    if let Some(branch_index) = pipeline.branches.iter().position(|b| *b == branch.name) {
+                                        if pipeline.condition == Condition::Automatic {
+                                            // Kill previous procedure process
+                                            for pipeline_connection in &*pipeline_connections {
+                                                if pipeline_connection.remote_url == project.url && pipeline_connection.branch_name == branch.name && pipeline_connection.pipeline_name == pipeline.name {
+                                                    info!(format!("[{}] Found previous running version. Attempting to send kill message", pipeline.name));
+                                                    if pipeline_connection.send(Command::KillProcedure).is_err() {
+                                                        error!(format!("[{}] Attempted to kill previous pipeline task, but failed. Continuing anyway.", pipeline.name));
+                                                    }
+                                                    // TODO: Wait for response/timeout
+                                                }
+                                            }
+                
+                                            if pipeline.stages_order.is_some() && !pipeline.stages_order.as_ref().unwrap().is_empty() {
+                                                let (pipeline_connection, receiver) = PipelineConnection::new(project.url.clone(), branch.name.clone(), pipeline.name.clone());
+                                                pipeline_connections.push(pipeline_connection);
+                                                let default_deploy_path = configuration.default_deploy_path.clone();
+                                                let project_url = project.url.clone();
+                                                let pipeline = Arc::new(pipeline.clone());
+                                                let short_hash = Arc::clone(&short_hash);
+                                                let default_log_path = configuration.default_log_path.clone(); // TODO: Revisit possible unnecessary clone (along with all its uses)
+                
+                                                tokio::task::spawn(run_pipeline(receiver, project_url, default_deploy_path, pipeline, short_hash, branch_index, default_log_path));
+                                            }
+                                        }
+                                    } else {
+                                        continue;
+                                    }
+                                }
+                            }
+        
+                            possible_new_branches = Some(branches);
+                        },
+                        Err(error) => {
+                            error!(format!("Failed to query commits for project with url {} and error:\n{}", project.url, error));
                             continue;
                         }
-
-                        // Kill previous procedure process
-                        for unlocked_procedure_thread_connection in &procedure_thread_connections {
-                            let procedure_thread_connection = &unlocked_procedure_thread_connection.read().unwrap();
-                            if procedure_thread_connection.remote_url == project.url && procedure_thread_connection.branch == branch.name && procedure_thread_connection.procedure_name == procedure.name {
-                                info!(format!("[{}] Found previous running version. Attempting to send kill message", procedure.name));
-                                let sen = &procedure_thread_connection.owner_channel.sender.read().unwrap();
-                                sen.send(Command::KillProcedure).expect("Failed to send kill command!");
-                                // TODO: Wait for response/timeout
-                            }
-                        }
-
-                        // Insert new connection
-                        procedure_thread_connections.push(Arc::new(RwLock::new(ThreadProcedureConnection::new(project.url.clone(), branch.name.clone(), procedure.name.clone()))));
-                        let procedure_connection = procedure_thread_connections.last_mut().unwrap();
-
-                        // Run procedure
-                        run_project_procedure(&project, &branch, &procedure, Arc::clone(&procedure_connection)).expect("Procedure failed due to a git error!");
                     }
                 }
-                project.update_branches(branches);
-            }
-            debug!(format!("Updater thread sleeping for {} seconds", interval / 1000));
-            thread::sleep(Duration::from_millis(interval as u64));
-        }
-    })
-}
 
-fn read_configuration() -> Result<Value, Error> {
-    let raw_data: String = fs::read_to_string("config.json")?;
-    Ok(serde_json::from_str(&raw_data)?)
+                if let Some(new_branches) = possible_new_branches {
+                    configuration.projects[project_index].update_branches(new_branches);
+                }
+            }
+        }
+
+        debug!(format!("Updater thread sleeping for {} seconds", interval));
+        tokio::time::sleep(Duration::from_secs(interval as u64)).await;
+    }
 }

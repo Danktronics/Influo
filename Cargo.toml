@@ -1,18 +1,25 @@
 [package]
 name = "influo"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Sei4or <sei4or@gmail.com>", "sithsiri <sithpri@gmail.com>"]
 description = "CI / CD the right way"
 license = "MIT"
 edition = "2018"
 
+[features]
+http-api = ["hyper", "route-recognizer", "base64"]
+
 [dependencies]
-serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
 anyhow = "1.0"
 regex = "1"
 lazy_static = "1.4.0"
 crossbeam-channel = "0.5"
-tokio = { version = "0.3.3", features = ["process", "rt-multi-thread", "sync", "io-util"] }
+tokio = { version = "1.4.0", features = ["process", "rt-multi-thread", "sync", "io-util", "macros", "time"] }
 futures = "0.3.4"
 shell-words = "1.0.0"
 chrono = "0.4"
+hyper = { version = "0.14", features = ["full"], optional = true }
+route-recognizer = { version = "0.3.0", optional = true }
+base64 = { version = "0.13.0", optional = true }

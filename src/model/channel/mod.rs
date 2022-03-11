@@ -1,64 +1,40 @@
-use std::sync::{RwLock};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use std::sync::Mutex;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel, error::SendError};
 
 pub mod message;
 
-use message::{Command, Response};
+use message::Command;
 
 #[derive(Debug)]
 pub struct Channel<T> {
-    pub receiver: RwLock<UnboundedReceiver<T>>,
-    pub sender: RwLock<UnboundedSender<T>>,
+    pub receiver: Mutex<UnboundedReceiver<T>>,
+    pub sender: UnboundedSender<T>,
 }
 
 #[derive(Debug)]
-pub struct ThreadConnection {
-    pub owner_channel: Channel<Command>, // Channel for the owner thread to send
-    pub child_channel: Channel<Response>, // Channel for the child thread to send (spawned by owner)
-}
-
-impl ThreadConnection {
-    pub fn new() -> ThreadConnection {
-        let (owner_sender, owner_receiver) = unbounded_channel();
-        let (child_sender, child_receiver) = unbounded_channel();
-        ThreadConnection {
-            owner_channel: Channel::<Command> {
-                receiver: RwLock::new(owner_receiver),
-                sender: RwLock::new(owner_sender),
-            },
-            child_channel: Channel::<Response> {
-                receiver: RwLock::new(child_receiver),
-                sender: RwLock::new(child_sender),
-            }
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct ThreadProcedureConnection {
+pub struct PipelineConnection {
     pub remote_url: String,
-    pub branch: String,
-    pub procedure_name: String,
-    pub owner_channel: Channel<Command>, // Channel for the owner thread to send
-    pub child_channel: Channel<Response>, // Channel for the child thread to send (spawned by owner)
+    pub branch_name: String,
+    pub pipeline_name: String,
+    sender: UnboundedSender<Command>
 }
 
-impl ThreadProcedureConnection {
-    pub fn new(remote_url: String, branch: String, procedure_name: String) -> ThreadProcedureConnection {
-        let (owner_sender, owner_receiver) = unbounded_channel();
-        let (child_sender, child_receiver) = unbounded_channel();
-        ThreadProcedureConnection {
-            remote_url: remote_url,
-            branch: branch,
-            procedure_name: procedure_name,
-            owner_channel: Channel::<Command> {
-                receiver: RwLock::new(owner_receiver),
-                sender: RwLock::new(owner_sender),
-            },
-            child_channel: Channel::<Response> {
-                receiver: RwLock::new(child_receiver),
-                sender: RwLock::new(child_sender),
-            }
-        }
+impl PipelineConnection {
+    pub fn new(remote_url: String, branch_name: String, pipeline_name: String) -> (PipelineConnection, UnboundedReceiver<Command>) {
+        let (sender, receiver) = unbounded_channel();
+        (PipelineConnection {
+            remote_url,
+            branch_name,
+            pipeline_name,
+            sender
+        }, receiver)
+    }
+
+    pub fn send(&self, command: Command) -> Result<(), SendError<Command>> {
+        self.sender.send(command)
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.sender.is_closed()
     }
 }

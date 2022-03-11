@@ -2,23 +2,61 @@
     "update_interval": 30,
     "log_level": "info",
     "default_deploy_path": "./projects",
+    "default_log_path": "./logs",
+    "api": {
+        "http": {
+            "port": 4200
+        }
+    },
     "projects": [
         {
             "url": "git url",
-            "procedures": [
+            "pipelines": [
                 {
-                    "name": "deploy_production",
-                    "commands": [
-                        "start script"
+                    "name": "Production",
+                    "stages": [
+                        "install_dependencies",
+                        "lint",
+                        "deploy_production"
                     ],
-                    "environment": "production",
-                    "condition": "automatic",
-                    "deploy_path": "./projects",
-                    "auto_restart": {"not": [0]},
                     "branches": [
                         "master"
                     ],
-                    "log": "[{name}] [{time}] [{path}] Command ({command}): {log}"
+                    "log": {
+                        "template": "[{time}] [{pipeline_name}] [{pipeline_stage}] [{path}] Command ({command}): {message}",
+                        "console": true,
+                        "save_to_file": true
+                    },
+                    "condition": "automatic",
+                    "procedures": {
+                        "install_dependencies": [
+                            {
+                                "commands": [
+                                    "install command"
+                                ],
+                                "condition": "automatic"
+                            }
+                        ],
+                        "lint": [
+                            {
+                                "name": "lint",
+                                "commands": [
+                                    "lint command"
+                                ],
+                                "condition": "automatic"
+                            }
+                        ],
+                        "deploy_production": [
+                            {
+                                "name": "deploy",
+                                "commands": [
+                                    "run command"
+                                ],
+                                "condition": "automatic",
+                                "auto_restart": {"not": [0]}
+                            }
+                        ]
+                    }
                 }
             ]
         }

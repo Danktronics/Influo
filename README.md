@@ -1,10 +1,9 @@
 # Influo
-CI / CD with epic features
+Simple CI / CD for building, testing, deploying, and managing any project.
 
 ## Features
 
-* Install with only **one binary**
-* Deploy in many environments with ease
+* Install with only **one binary** and run with **only one configuration file**
 * **Supports Linux and Windows.** Other platforms are untested but may work.
 * Supports any language/framework that can be built and executed using the command line
 * Pull from **any git repository** as long as Git is installed and setup

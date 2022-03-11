@@ -1,15 +1,12 @@
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use serde::{Serialize, Deserialize, Deserializer};
-use serde::de::{Visitor, MapAccess, SeqAccess};
+use serde::de::{Visitor, MapAccess};
 
 use super::procedure::Procedure;
 
 use std::fmt;
 use std::marker;
-use serde::de;
-
-use anyhow::anyhow;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Pipeline {

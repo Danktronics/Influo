@@ -29,7 +29,7 @@ use model::{
 use system_cmd::get_remote_git_repository_commits;
 use logger::LOGGER;
 use pipeline_manager::run_pipeline;
-use util::filesystem::read_configuration;
+use util::filesystem::read_raw_configuration;
 
 #[cfg(feature = "http-api")]
 use api::http::start_http_server;
@@ -39,7 +39,7 @@ async fn main() -> Result<(), Error> {
     info!("Influo is running!");
 
     // Load Configuration
-    let raw_config: Result<Value, Error> = read_configuration();
+    let raw_config: Result<Value, Error> = read_raw_configuration();
     if let Err(error) = raw_config {
         error!("Configuration not found");
         return Err(error);
@@ -69,7 +69,7 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-/// Setups the updater for checking updates and controlling procedures
+// Setups the updater for checking updates and controlling procedures
 async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_thread_connections: Arc<Mutex<Vec<PipelineConnection>>>) {
     info!("Starting updater");
 
@@ -111,7 +111,7 @@ async fn setup_updater(configuration: Arc<Mutex<Configuration>>, procedure_threa
                                                 }
                                             }
                 
-                                            if !pipeline.stages.is_empty() {
+                                            if pipeline.stages_order.is_some() && !pipeline.stages_order.as_ref().unwrap().is_empty() {
                                                 let (pipeline_connection, receiver) = PipelineConnection::new(project.url.clone(), branch.name.clone(), pipeline.name.clone());
                                                 pipeline_connections.push(pipeline_connection);
                                                 let default_deploy_path = configuration.default_deploy_path.clone();
